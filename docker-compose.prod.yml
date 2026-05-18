@@ -12,8 +12,6 @@ services:
       - "6333"
     volumes:
       - qdrant_data:/qdrant/storage
-    environment:
-      QDRANT__SERVICE__API_KEY: ""
     restart: unless-stopped
     deploy:
       resources:
