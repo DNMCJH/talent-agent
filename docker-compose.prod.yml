@@ -35,7 +35,7 @@ services:
     volumes:
       - app_data:/app/data
     ports:
-      - "127.0.0.1:9003:8501"
+      - "9003:8501"
     restart: unless-stopped
     deploy:
       resources:
