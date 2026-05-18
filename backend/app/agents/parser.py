@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import hashlib
 
-from talent_agent.llm import call_llm_structured
-from talent_agent.models import ParsedJD
+from app.core.llm import call_llm_structured
+from app.schemas.agent_models import ParsedJD
 
 SYSTEM_PROMPT = """You are a JD (Job Description) parser for tech roles. Extract structured information from the raw JD text.
 

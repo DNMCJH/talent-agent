@@ -5,15 +5,15 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from talent_agent.llm import call_llm, call_llm_chat
-from talent_agent.models import (
+from app.core.llm import call_llm, call_llm_chat
+from app.schemas.agent_models import (
     ChatTurn,
     InterviewSession,
     ParsedJD,
     ProjectDoc,
     WeaknessEntry,
 )
-from talent_agent.store import get_all_weaknesses, save_session, upsert_weakness
+from app.services.state_store import get_all_weaknesses, save_session, upsert_weakness
 
 INTERVIEWER_SYSTEM = """You are a senior tech interviewer at {company} hiring for {role}.
 

@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from talent_agent.llm import call_llm_structured
-from talent_agent.models import ImprovementPlan, MatchResult
+from app.core.llm import call_llm_structured
+from app.schemas.agent_models import ImprovementPlan, MatchResult
 
 SYSTEM_PROMPT = """You are a senior engineering mentor helping an intern candidate prepare for interviews.
 

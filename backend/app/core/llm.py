@@ -8,7 +8,7 @@ from typing import Any, TypeVar
 from openai import OpenAI
 from pydantic import BaseModel
 
-from talent_agent.config import settings
+from app.core.config import settings
 
 T = TypeVar("T", bound=BaseModel)
 

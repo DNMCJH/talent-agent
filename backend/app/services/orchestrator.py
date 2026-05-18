@@ -8,13 +8,13 @@ from typing import Literal
 from qdrant_client import QdrantClient
 from sentence_transformers import SentenceTransformer
 
-from talent_agent.agents.improver import generate_improvements
-from talent_agent.agents.interviewer import init_interview
-from talent_agent.agents.matcher import match_projects
-from talent_agent.agents.parser import parse_jd
-from talent_agent.agents.rewriter import rewrite_resume
-from talent_agent.config import settings
-from talent_agent.models import (
+from app.agents.improver import generate_improvements
+from app.agents.interviewer import init_interview
+from app.agents.matcher import match_projects
+from app.agents.parser import parse_jd
+from app.agents.rewriter import rewrite_resume
+from app.core.config import settings
+from app.schemas.agent_models import (
     ImprovementPlan,
     InterviewSession,
     MatchResult,

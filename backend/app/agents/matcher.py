@@ -4,9 +4,9 @@ from __future__ import annotations
 
 from qdrant_client import QdrantClient
 
-from talent_agent.config import settings
-from talent_agent.llm import call_llm
-from talent_agent.models import Match, MatchResult, ParsedJD, ProjectDoc
+from app.core.config import settings
+from app.core.llm import call_llm
+from app.schemas.agent_models import Match, MatchResult, ParsedJD, ProjectDoc
 
 
 def _normalize_skill(name: str) -> str:

@@ -6,8 +6,8 @@ from pathlib import Path
 
 import aiosqlite
 
-from talent_agent.config import settings
-from talent_agent.models import InterviewSession, WeaknessEntry
+from app.core.config import settings
+from app.schemas.agent_models import InterviewSession, WeaknessEntry
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS sessions (

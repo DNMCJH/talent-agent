@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from talent_agent.llm import call_llm_structured
-from talent_agent.models import ImprovementPlan, MatchResult, ResumeBundle
+from app.core.llm import call_llm_structured
+from app.schemas.agent_models import ImprovementPlan, MatchResult, ResumeBundle
 
 SYSTEM_PROMPT = """You are a resume writing expert for tech internship candidates.
 
