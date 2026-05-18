@@ -57,3 +57,7 @@ reports/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Personal handoff / resume prompts (not source)
+PHASE*_PROMPT.md
+RESUME_PROMPT.md

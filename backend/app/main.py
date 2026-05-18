@@ -1,0 +1,26 @@
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+
+from app.api import auth, interview, match, projects, resume
+from app.core.config import settings
+
+app = FastAPI(title="talent-agent API", version="0.2.0")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.api_cors_origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+app.include_router(auth.router, prefix="/auth", tags=["auth"])
+app.include_router(projects.router, prefix="/projects", tags=["projects"])
+app.include_router(match.router, prefix="/match", tags=["match"])
+app.include_router(interview.router, prefix="/interview", tags=["interview"])
+app.include_router(resume.router, prefix="/resume", tags=["resume"])
+
+
+@app.get("/health")
+async def health() -> dict[str, str]:
+    return {"status": "ok"}

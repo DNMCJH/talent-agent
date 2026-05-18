@@ -1,0 +1,67 @@
+"""GitHub OAuth code exchange + JWT issuing for session tokens.
+
+Flow: frontend (NextAuth.js) sends GitHub OAuth `code` to /auth/github.
+Backend exchanges code for access_token, fetches user profile, upserts a
+User row, and returns a backend-signed JWT used as the Bearer token for
+all subsequent API calls.
+"""
+from __future__ import annotations
+
+from datetime import UTC, datetime, timedelta
+from typing import Any
+
+import httpx
+import jwt
+
+from app.core.config import settings
+
+JWT_ALG = "HS256"
+JWT_TTL_DAYS = 30
+
+
+class OAuthError(Exception):
+    pass
+
+
+async def exchange_github_code(code: str) -> str:
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        resp = await client.post(
+            "https://github.com/login/oauth/access_token",
+            data={
+                "client_id": settings.github_client_id,
+                "client_secret": settings.github_client_secret,
+                "code": code,
+            },
+            headers={"Accept": "application/json"},
+        )
+    if resp.status_code != 200:
+        raise OAuthError(f"github token endpoint {resp.status_code}")
+    body = resp.json()
+    token = body.get("access_token")
+    if not token:
+        raise OAuthError(f"no access_token in response: {body}")
+    return token
+
+
+async def fetch_github_user(access_token: str) -> dict[str, Any]:
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        resp = await client.get(
+            "https://api.github.com/user",
+            headers={"Authorization": f"Bearer {access_token}", "Accept": "application/vnd.github+json"},
+        )
+    if resp.status_code != 200:
+        raise OAuthError(f"github user endpoint {resp.status_code}")
+    return resp.json()
+
+
+def issue_jwt(user_id: int) -> str:
+    payload = {
+        "sub": str(user_id),
+        "exp": datetime.now(UTC) + timedelta(days=JWT_TTL_DAYS),
+        "iat": datetime.now(UTC),
+    }
+    return jwt.encode(payload, settings.api_secret, algorithm=JWT_ALG)
+
+
+def decode_jwt(token: str) -> dict[str, Any]:
+    return jwt.decode(token, settings.api_secret, algorithms=[JWT_ALG])
