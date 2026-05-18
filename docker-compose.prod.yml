@@ -1,0 +1,50 @@
+# Production compose: app + Qdrant, both on the internal network.
+# Streamlit listens on 127.0.0.1:9003; Caddy on the host reverse-proxies it.
+#
+# Before first deploy: scp data/qdrant_storage to the host and mount it,
+# OR re-run `talent-index` from inside the app container.
+
+services:
+  qdrant:
+    image: qdrant/qdrant:v1.12.5
+    container_name: talent_qdrant
+    expose:
+      - "6333"
+    volumes:
+      - qdrant_data:/qdrant/storage
+    environment:
+      QDRANT__SERVICE__API_KEY: ${QDRANT_API_KEY:-}
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 300M
+
+  app:
+    build: .
+    container_name: talent_app
+    depends_on:
+      - qdrant
+    environment:
+      LLM_API_KEY: ${LLM_API_KEY}
+      LLM_BASE_URL: ${LLM_BASE_URL:-https://api.deepseek.com}
+      LLM_MODEL: ${LLM_MODEL:-deepseek-chat}
+      EMBED_MODEL: BAAI/bge-small-zh-v1.5
+      EMBED_DEVICE: cpu
+      QDRANT_URL: http://qdrant:6333
+      QDRANT_API_KEY: ${QDRANT_API_KEY:-}
+      PROJECTS_ROOT: /app/data/indexed_projects
+      STATE_DB: /app/data/state.sqlite
+    volumes:
+      - app_data:/app/data
+    ports:
+      - "127.0.0.1:9003:8501"
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 700M
+
+volumes:
+  qdrant_data:
+  app_data:

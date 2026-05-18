@@ -1,0 +1,12 @@
+.venv
+.git
+.pytest_cache
+.ruff_cache
+**/__pycache__
+data
+docs
+tests
+*.md
+RESUME_PROMPT.md
+.env
+.env.local
