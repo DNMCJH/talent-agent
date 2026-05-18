@@ -6,7 +6,8 @@
 data
 docs
 tests
-*.md
 RESUME_PROMPT.md
+README_CN.md
+ARCHITECTURE.md
 .env
 .env.local
