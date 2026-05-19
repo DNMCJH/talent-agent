@@ -31,6 +31,12 @@ class Settings(BaseSettings):
     # API
     api_cors_origins: list[str] = ["http://localhost:3000"]
     api_secret: str = "dev-secret-change-me"  # JWT signing for session tokens
+    api_public_base: str = "http://localhost:3000"  # for building email verification links
+
+    # Email (Resend). Leave api key empty to disable email sending (registration
+    # still works, users are marked unverified but allowed to use the app).
+    resend_api_key: str = ""
+    resend_from: str = "Talent Agent <onboarding@resend.dev>"
 
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8", "extra": "ignore"}
 

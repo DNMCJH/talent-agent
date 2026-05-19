@@ -40,6 +40,7 @@
     "plusCoverage": "加分",
     "mockInterview": "模拟面试",
     "generateResume": "生成简历",
+    "generateFull": "生成完整简历",
     "resumeTitle": "简历要点",
     "resumeStack": "技术栈",
     "copy": "复制",

@@ -1,11 +1,18 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db import get_session
-from app.core.rate_limit import rate_limit_llm
+from app.core.rate_limit import rate_limit_llm, rate_limit_llm_sse
+from app.core.sse import SSE_HEADERS, wrap_sse
 from app.models.user import User
-from app.services.interview_service import start_interview, take_turn
+from app.services.interview_service import (
+    start_interview,
+    start_interview_stream,
+    take_turn,
+    take_turn_stream,
+)
 
 router = APIRouter()
 
@@ -53,4 +60,55 @@ async def turn(
         session_id=body.session_id,
         candidate_message=body.candidate_message,
         session=session,
+    )
+
+
+# ---------- SSE streaming endpoints ----------
+#
+# EventSource cannot send Authorization headers, so auth comes from `?token=`
+# query param. Body params are also passed as query params for the same reason.
+
+
+@router.get("/start/stream")
+async def start_stream(
+    project_ids: str = Query(default=""),  # comma-separated IDs
+    raw_jd: str = Query(default=""),
+    mode: str = Query(default="tech"),
+    interview_type: str = Query(default="targeted"),
+    language: str = Query(default="en"),
+    user: User = Depends(rate_limit_llm_sse),
+    session: AsyncSession = Depends(get_session),
+) -> StreamingResponse:
+    ids = [int(x) for x in project_ids.split(",") if x.strip()]
+    return StreamingResponse(
+        wrap_sse(start_interview_stream(
+            user_id=user.id,
+            project_ids=ids,
+            interview_type=interview_type,
+            mode=mode,
+            raw_jd=raw_jd,
+            language=language,
+            session=session,
+        )),
+        media_type="text/event-stream",
+        headers=SSE_HEADERS,
+    )
+
+
+@router.get("/turn/stream")
+async def turn_stream(
+    session_id: str = Query(...),
+    candidate_message: str = Query(...),
+    user: User = Depends(rate_limit_llm_sse),
+    session: AsyncSession = Depends(get_session),
+) -> StreamingResponse:
+    return StreamingResponse(
+        wrap_sse(take_turn_stream(
+            user_id=user.id,
+            session_id=session_id,
+            candidate_message=candidate_message,
+            session=session,
+        )),
+        media_type="text/event-stream",
+        headers=SSE_HEADERS,
     )

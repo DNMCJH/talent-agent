@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from collections.abc import AsyncIterator
 from typing import Any, TypeVar
 
 from openai import AsyncOpenAI
@@ -166,3 +167,51 @@ async def call_llm_chat(
         messages=full_messages,
     )
     return resp.choices[0].message.content or ""
+
+
+async def stream_llm_chat(
+    system: str,
+    messages: list[dict[str, Any]],
+    *,
+    model: str | None = None,
+    max_tokens: int = 2048,
+    temperature: float = 0.5,
+) -> AsyncIterator[str]:
+    """Yield content chunks as the LLM generates them.
+
+    Caller is responsible for accumulating the full text if needed for storage.
+    """
+    client = get_client()
+    full_messages = [{"role": "system", "content": system}] + messages
+    stream = await client.chat.completions.create(
+        model=model or settings.llm_model,
+        max_tokens=max_tokens,
+        temperature=temperature,
+        messages=full_messages,
+        stream=True,
+    )
+    async for chunk in stream:
+        if not chunk.choices:
+            continue
+        delta = chunk.choices[0].delta
+        if delta and delta.content:
+            yield delta.content
+
+
+async def stream_llm(
+    system: str,
+    user_message: str,
+    *,
+    model: str | None = None,
+    max_tokens: int = 4096,
+    temperature: float = 0.3,
+) -> AsyncIterator[str]:
+    """Single-turn streaming wrapper."""
+    async for chunk in stream_llm_chat(
+        system=system,
+        messages=[{"role": "user", "content": user_message}],
+        model=model,
+        max_tokens=max_tokens,
+        temperature=temperature,
+    ):
+        yield chunk

@@ -81,3 +81,26 @@ def issue_jwt(user_id: int) -> str:
 
 def decode_jwt(token: str) -> dict[str, Any]:
     return jwt.decode(token, settings.api_secret, algorithms=[JWT_ALG])
+
+
+# Email verification tokens — short-lived JWTs with a distinct `purpose` claim
+# so a stolen verification link cannot be used as a session token.
+EMAIL_VERIFY_TTL_HOURS = 24
+
+
+def issue_email_verify_token(user_id: int) -> str:
+    payload = {
+        "sub": str(user_id),
+        "purpose": "email_verify",
+        "exp": datetime.now(UTC) + timedelta(hours=EMAIL_VERIFY_TTL_HOURS),
+        "iat": datetime.now(UTC),
+    }
+    return jwt.encode(payload, settings.api_secret, algorithm=JWT_ALG)
+
+
+def decode_email_verify_token(token: str) -> int:
+    """Returns user_id if token is valid and has the right purpose; raises otherwise."""
+    payload = jwt.decode(token, settings.api_secret, algorithms=[JWT_ALG])
+    if payload.get("purpose") != "email_verify":
+        raise jwt.InvalidTokenError("wrong token purpose")
+    return int(payload["sub"])

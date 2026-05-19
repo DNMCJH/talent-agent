@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import useSWR from "swr";
-import { useApi, ApiError } from "@/lib/api";
+import { useApi } from "@/lib/api";
+import { openSSE } from "@/lib/sse";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -62,6 +63,14 @@ export default function InterviewPage() {
   const [messages, setMessages] = useState<ChatMsg[]>([]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
+  // Holds the active SSE cleanup so we can cancel on unmount / new turn.
+  const sseCloseRef = useRef<(() => void) | null>(null);
+
+  useEffect(() => {
+    return () => {
+      sseCloseRef.current?.();
+    };
+  }, []);
 
   function toggleProject(id: number) {
     setSelectedIds((prev) =>
@@ -78,52 +87,107 @@ export default function InterviewPage() {
     }
   }
 
-  async function onStart() {
+  function onStart() {
     if (interviewType === "targeted" && (selectedIds.length === 0 || !jd.trim())) return;
-    setStarting(true);
-    try {
-      const r = await api.post<TurnResponse>("/interview/start", {
-        project_ids: interviewType === "targeted" ? selectedIds : [],
-        interview_type: interviewType,
-        mode: interviewType === "targeted" ? mode : "comprehensive",
-        raw_jd: jd,
-        language,
-      }, 120_000);
-      setSessionId(r.session_id);
-      setMessages([{ role: "interviewer", content: r.interviewer_message }]);
-    } catch (e) {
-      const msg = e instanceof ApiError ? e.message : String(e);
-      toast.error(msg);
-    } finally {
-      setStarting(false);
+    if (!api.token) {
+      toast.error(t.interview.start);
+      return;
     }
+    setStarting(true);
+    // Seed an empty interviewer bubble that the stream will fill in.
+    setMessages([{ role: "interviewer", content: "" }]);
+
+    sseCloseRef.current?.();
+    sseCloseRef.current = openSSE(
+      "/interview/start/stream",
+      api.token,
+      {
+        project_ids: interviewType === "targeted" ? selectedIds.join(",") : "",
+        raw_jd: jd,
+        mode: interviewType === "targeted" ? mode : "comprehensive",
+        interview_type: interviewType,
+        language,
+      },
+      {
+        onEvent: (e) => {
+          if (e.type === "delta") {
+            setMessages((m) => {
+              const last = m[m.length - 1];
+              if (!last) return m;
+              return [...m.slice(0, -1), { ...last, content: last.content + e.text }];
+            });
+          } else if (e.type === "done") {
+            setSessionId(e.session_id as string);
+            setStarting(false);
+          } else if (e.type === "error") {
+            toast.error(e.message);
+            setMessages([]);
+            setStarting(false);
+          }
+        },
+        onNetworkError: () => {
+          toast.error(language === "zh" ? "连接中断，请重试" : "Connection lost, please retry");
+          setMessages([]);
+          setStarting(false);
+        },
+      },
+    );
   }
 
-  async function onSend() {
-    if (!sessionId || !input.trim()) return;
+  function onSend() {
+    if (!sessionId || !input.trim() || !api.token) return;
     const msg = input.trim();
     setInput("");
-    setMessages((m) => [...m, { role: "candidate", content: msg }]);
+    // Append candidate turn, then an empty interviewer turn for streaming.
+    setMessages((m) => [
+      ...m,
+      { role: "candidate", content: msg },
+      { role: "interviewer", content: "" },
+    ]);
     setSending(true);
-    try {
-      const r = await api.post<TurnResponse>("/interview/turn", {
-        session_id: sessionId,
-        candidate_message: msg,
-      }, 90_000);
-      setMessages((m) => [
-        ...m.slice(0, -1),
-        { ...m[m.length - 1], critique: r.critique },
-        { role: "interviewer", content: r.interviewer_message },
-      ]);
-    } catch (e) {
-      const errMsg = e instanceof ApiError ? e.message : String(e);
-      toast.error(errMsg);
-    } finally {
-      setSending(false);
-    }
+
+    sseCloseRef.current?.();
+    sseCloseRef.current = openSSE(
+      "/interview/turn/stream",
+      api.token,
+      { session_id: sessionId, candidate_message: msg },
+      {
+        onEvent: (e) => {
+          if (e.type === "delta") {
+            setMessages((m) => {
+              const last = m[m.length - 1];
+              if (!last) return m;
+              return [...m.slice(0, -1), { ...last, content: last.content + e.text }];
+            });
+          } else if (e.type === "done") {
+            const critique = e.critique as Critique | undefined;
+            // Attach critique to the candidate turn (one before the interviewer turn).
+            setMessages((m) => {
+              if (m.length < 2) return m;
+              const candIdx = m.length - 2;
+              const updated = [...m];
+              updated[candIdx] = { ...updated[candIdx], critique };
+              return updated;
+            });
+            setSending(false);
+          } else if (e.type === "error") {
+            toast.error(e.message);
+            // Roll back the empty interviewer bubble.
+            setMessages((m) => m.slice(0, -1));
+            setSending(false);
+          }
+        },
+        onNetworkError: () => {
+          toast.error(language === "zh" ? "连接中断，请重试" : "Connection lost, please retry");
+          setMessages((m) => m.slice(0, -1));
+          setSending(false);
+        },
+      },
+    );
   }
 
   function onReset() {
+    sseCloseRef.current?.();
     setSessionId(null);
     setMessages([]);
     setInput("");
@@ -306,29 +370,54 @@ export default function InterviewPage() {
       </div>
 
       <div className="space-y-3">
-        {messages.map((m, i) => (
-          <Card key={i} className={m.role === "candidate" ? "bg-muted/40" : ""}>
-            <CardHeader className="pb-2">
-              <CardDescription className="text-xs uppercase tracking-wide">
-                {m.role}
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm whitespace-pre-wrap">{m.content}</p>
-              {m.critique && (
-                <div className="mt-3 pt-3 border-t flex flex-wrap items-center gap-2 text-xs">
-                  <Badge variant="outline">score {m.critique.score ?? "?"}/5</Badge>
-                  {m.critique.severity && (
-                    <Badge variant="secondary">{m.critique.severity}</Badge>
-                  )}
-                  {m.critique.weakness_topics?.map((wt) => (
-                    <Badge key={wt} variant="destructive">{wt}</Badge>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        ))}
+        {messages.map((m, i) => {
+          const isLastCandidate =
+            m.role === "candidate" &&
+            i === messages.length - 2 &&
+            sending &&
+            !m.critique;
+          const isStreamingInterviewer =
+            m.role === "interviewer" &&
+            i === messages.length - 1 &&
+            (sending || starting) &&
+            m.content === "";
+          return (
+            <Card key={i} className={m.role === "candidate" ? "bg-muted/40" : ""}>
+              <CardHeader className="pb-2">
+                <CardDescription className="text-xs uppercase tracking-wide">
+                  {m.role}
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {isStreamingInterviewer ? (
+                  <p className="text-sm text-muted-foreground italic flex items-center gap-2">
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                    {language === "zh" ? "AI 正在思考…" : "AI is thinking…"}
+                  </p>
+                ) : (
+                  <p className="text-sm whitespace-pre-wrap">{m.content}</p>
+                )}
+                {m.critique && (
+                  <div className="mt-3 pt-3 border-t flex flex-wrap items-center gap-2 text-xs">
+                    <Badge variant="outline">score {m.critique.score ?? "?"}/5</Badge>
+                    {m.critique.severity && (
+                      <Badge variant="secondary">{m.critique.severity}</Badge>
+                    )}
+                    {m.critique.weakness_topics?.map((wt) => (
+                      <Badge key={wt} variant="destructive">{wt}</Badge>
+                    ))}
+                  </div>
+                )}
+                {isLastCandidate && (
+                  <div className="mt-3 pt-3 border-t flex items-center gap-2 text-xs text-muted-foreground">
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                    {language === "zh" ? "评分中…" : "Scoring…"}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          );
+        })}
       </div>
 
       <div className="sticky bottom-4 bg-background border rounded-lg p-3 flex gap-2">

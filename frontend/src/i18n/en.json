@@ -40,6 +40,7 @@
     "plusCoverage": "Plus",
     "mockInterview": "Mock Interview",
     "generateResume": "Generate Resume",
+    "generateFull": "Generate Full Resume",
     "resumeTitle": "Resume Bullets",
     "resumeStack": "Tech Stack",
     "copy": "Copy",

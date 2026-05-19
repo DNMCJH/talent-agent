@@ -3,16 +3,22 @@ from pydantic import BaseModel, EmailStr
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+import jwt
+
 from app.core.auth import (
     OAuthError,
+    decode_email_verify_token,
     exchange_github_code,
     fetch_github_user,
+    issue_email_verify_token,
     issue_jwt,
     hash_password,
     verify_password,
 )
+from app.core.config import settings
 from app.core.db import get_session
 from app.core.deps import get_current_user
+from app.core.mail import build_verification_email, send_email
 from app.models.user import User
 
 router = APIRouter()
@@ -39,6 +45,7 @@ class MeOut(BaseModel):
     github_login: str | None = None
     email: str | None = None
     avatar_url: str | None = None
+    email_verified: bool = False
 
 
 class RegisterIn(BaseModel):
@@ -72,12 +79,14 @@ async def login_with_github(
             github_login=profile["login"],
             email=profile.get("email"),
             avatar_url=profile.get("avatar_url"),
+            email_verified=True,  # GitHub OAuth implies email already verified upstream
         )
         session.add(user)
     else:
         user.github_login = profile["login"]
         user.email = profile.get("email")
         user.avatar_url = profile.get("avatar_url")
+        user.email_verified = True
     await session.commit()
     await session.refresh(user)
 
@@ -106,12 +115,14 @@ async def login_with_github_token(
             github_login=profile["login"],
             email=profile.get("email"),
             avatar_url=profile.get("avatar_url"),
+            email_verified=True,
         )
         session.add(user)
     else:
         user.github_login = profile["login"]
         user.email = profile.get("email")
         user.avatar_url = profile.get("avatar_url")
+        user.email_verified = True
     await session.commit()
     await session.refresh(user)
 
@@ -126,7 +137,17 @@ async def me(user: User = Depends(get_current_user)) -> MeOut:
         github_login=user.github_login,
         email=user.email,
         avatar_url=user.avatar_url,
+        email_verified=user.email_verified,
     )
+
+
+async def _send_verification(user: User) -> bool:
+    if not user.email:
+        return False
+    token = issue_email_verify_token(user.id)
+    link = f"{settings.api_public_base}/verify-email?token={token}"
+    subject, html, text = build_verification_email(link=link, to_email=user.email)
+    return await send_email(to=user.email, subject=subject, html=html, text=text)
 
 
 @router.post("/register", response_model=TokenOut)
@@ -140,11 +161,47 @@ async def register(
     if len(body.password) < 6:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "password must be at least 6 characters")
 
-    user = User(email=body.email, password_hash=hash_password(body.password))
+    user = User(email=body.email, password_hash=hash_password(body.password), email_verified=False)
     session.add(user)
     await session.commit()
     await session.refresh(user)
+
+    # Fire verification email — best-effort. If RESEND_API_KEY is unset, send_email
+    # logs a warning and returns False; we don't block registration on it.
+    await _send_verification(user)
+
     return TokenOut(access_token=issue_jwt(user.id), user_id=user.id)
+
+
+@router.post("/resend-verification")
+async def resend_verification(user: User = Depends(get_current_user)) -> dict[str, str]:
+    if user.email_verified:
+        return {"status": "already_verified"}
+    if not user.email:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "no email on account")
+    ok = await _send_verification(user)
+    return {"status": "sent" if ok else "skipped_no_email_provider"}
+
+
+@router.get("/verify-email")
+async def verify_email(
+    token: str,
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, str]:
+    try:
+        user_id = decode_email_verify_token(token)
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "verification link expired")
+    except jwt.InvalidTokenError:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "invalid verification link")
+
+    user = await session.get(User, user_id)
+    if user is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "user not found")
+    if not user.email_verified:
+        user.email_verified = True
+        await session.commit()
+    return {"status": "verified", "email": user.email or ""}
 
 
 @router.post("/login", response_model=TokenOut)

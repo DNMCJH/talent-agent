@@ -195,7 +195,28 @@ export default function MatchPage() {
             </CardContent>
           </Card>
 
-          <h2 className="text-sm font-medium text-muted-foreground">{t.match.ranked}</h2>
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-medium text-muted-foreground">{t.match.ranked}</h2>
+            <Button
+              size="sm"
+              variant="default"
+              onClick={() => {
+                const ids = result.matches
+                  .map((m) => m.project_id)
+                  .filter((id): id is number => typeof id === "number")
+                  .slice(0, 5);
+                if (ids.length === 0) return;
+                const params = new URLSearchParams({
+                  project_ids: ids.join(","),
+                  jd,
+                });
+                router.push(`/resume?${params.toString()}`);
+              }}
+            >
+              <FileText className="mr-1.5 h-3.5 w-3.5" />
+              {t.match.generateFull}
+            </Button>
+          </div>
           {result.matches.map((m, idx) => (
             <Card key={idx}>
               <CardHeader>

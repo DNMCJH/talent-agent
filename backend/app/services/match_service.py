@@ -59,12 +59,14 @@ def _semantic_rescue(
     missing: list[str],
     skill_vecs: dict[str, list[float]],
     project_vec: list[float],
-    threshold: float = 0.55,
+    threshold: float = 0.45,
 ) -> tuple[list[str], list[str]]:
     """Move missing skills to matched if BGE cosine(skill, project) >= threshold.
 
-    Threshold 0.55 calibrated for BGE-zh: "PyTorch" vs a Python ML project hits ~0.6;
-    unrelated skills stay well below 0.5.
+    Threshold 0.45 calibrated against BGE-zh embeddings of short JD skill names
+    (e.g. "Python", "深度学习") vs project stack-summary text. Lower than typical
+    BGE thresholds because skill names are very short — they don't pull cosine high
+    even when conceptually identical to project content.
     """
     if not missing:
         return [], missing
@@ -131,7 +133,10 @@ async def match_for_user(
             continue
         candidate_docs[pid] = ProjectDoc.model_validate(proj_row.doc)
     project_texts = [
-        f"{d.name}. Stack: {', '.join(d.stack)}. Topics: {', '.join(d.topics)}"
+        # Include a README slice so the project vector reflects what the project
+        # actually does, not just its tech tags. Cap at 500 chars — enough for the
+        # opening pitch, short enough to keep batch encode fast.
+        f"{d.name}. Stack: {', '.join(d.stack)}. Topics: {', '.join(d.topics)}. {d.readme[:500]}"
         for d in candidate_docs.values()
     ]
     project_vec_list = embed_texts(project_texts) if project_texts else []

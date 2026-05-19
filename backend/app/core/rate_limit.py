@@ -9,7 +9,7 @@ import redis.asyncio as redis
 from fastapi import Depends, HTTPException, status
 
 from app.core.config import settings
-from app.core.deps import get_current_user
+from app.core.deps import get_current_user, get_current_user_sse
 from app.models.user import User
 
 
@@ -37,5 +37,11 @@ async def _check_rate(user_id: int, action: str, max_requests: int, window_secon
 
 
 async def rate_limit_llm(user: User = Depends(get_current_user)) -> User:
+    await _check_rate(user.id, "llm", max_requests=10, window_seconds=60)
+    return user
+
+
+async def rate_limit_llm_sse(user: User = Depends(get_current_user_sse)) -> User:
+    """Same rate limit as rate_limit_llm but auth via SSE-compatible token source."""
     await _check_rate(user.id, "llm", max_requests=10, window_seconds=60)
     return user

@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import uuid
+from collections.abc import AsyncIterator
 from datetime import datetime, timezone
 from typing import Any
 
@@ -18,7 +20,7 @@ from app.services.interview_prompts import (
     INTERVIEWER_SYSTEM,
     TARGETED_MULTI_SYSTEM,
 )
-from app.core.llm import call_llm, call_llm_chat
+from app.core.llm import call_llm, call_llm_chat, stream_llm, stream_llm_chat
 from app.models.interview import InterviewSession as InterviewSessionORM
 from app.models.interview import Weakness
 from app.models.project import Project
@@ -349,6 +351,265 @@ async def take_turn(
     return {
         "session_id": state.session_id,
         "interviewer_message": next_question,
+        "turn_count": state.turn_count,
+        "critique": critique,
+    }
+
+
+# ---------- streaming variants ----------
+#
+# Both stream functions yield dicts that the API layer formats as SSE events.
+# Event shapes:
+#   {"type": "delta", "text": "<chunk>"}      — incremental LLM output
+#   {"type": "done",  ...}                    — final event with metadata
+#   {"type": "error", "message": "..."}       — terminal error
+#
+# Critique runs in parallel with next-question streaming so the user does not wait
+# for it. Final state commit happens after both finish.
+
+
+def _build_interviewer_prompt(
+    *,
+    docs: list[ProjectDoc],
+    is_comprehensive: bool,
+    parsed: ParsedJD | None,
+    weakness_text: str,
+    focus: str,
+    language: str,
+) -> str:
+    company = parsed.company if parsed else "a tech company"
+    role = parsed.role if parsed else "software engineer"
+    must_skills = [s.name for s in parsed.must_skills] if parsed else []
+    summary = _projects_summary(docs)
+
+    if is_comprehensive:
+        system = COMPREHENSIVE_SYSTEM.format(
+            company=company,
+            role=role,
+            projects_summary=summary,
+            must_skills=must_skills or "none specified",
+            weaknesses=weakness_text,
+            focus=focus,
+        )
+    elif len(docs) == 1:
+        system = INTERVIEWER_SYSTEM.format(
+            company=company,
+            role=role,
+            project_name=docs[0].name,
+            stack=docs[0].stack,
+            must_skills=must_skills,
+            weaknesses=weakness_text,
+            focus=focus,
+        )
+    else:
+        system = TARGETED_MULTI_SYSTEM.format(
+            company=company,
+            role=role,
+            projects_summary=summary,
+            must_skills=must_skills,
+            weaknesses=weakness_text,
+            focus=focus,
+        )
+
+    lang_instruction = (
+        "\n\nIMPORTANT: Conduct this entire interview in Chinese (Mandarin). All your questions and responses must be in Chinese."
+        if language == "zh"
+        else "\n\nIMPORTANT: Conduct this entire interview in English. All your questions and responses must be in English."
+    )
+    return system + lang_instruction
+
+
+async def start_interview_stream(
+    user_id: int,
+    project_ids: list[int],
+    interview_type: str,
+    mode: str,
+    raw_jd: str,
+    language: str,
+    session: AsyncSession,
+) -> AsyncIterator[dict[str, Any]]:
+    """Streaming version of start_interview. Yields delta + final done event."""
+    is_comprehensive = interview_type == "comprehensive"
+
+    if is_comprehensive:
+        docs = await _load_all_projects(user_id, session)
+    else:
+        if not project_ids:
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, "select at least one project")
+        docs = await _load_projects(user_id, project_ids, session)
+
+    parsed = None
+    if raw_jd.strip():
+        parsed = await parse_jd(raw_jd)
+
+    weakness_text = await _user_weaknesses_text(user_id, session)
+    system = _build_interviewer_prompt(
+        docs=docs,
+        is_comprehensive=is_comprehensive,
+        parsed=parsed,
+        weakness_text=weakness_text,
+        focus=(
+            "overall technical background (first question)"
+            if is_comprehensive
+            else "project overview (first question)"
+        ),
+        language=language,
+    )
+    if is_comprehensive:
+        start_msg = "Start the comprehensive interview. Ask the candidate to introduce their technical background and project portfolio."
+    elif len(docs) == 1:
+        start_msg = "Start the interview. Ask your first question about the candidate's project."
+    else:
+        start_msg = "Start the interview. Ask the candidate to briefly introduce the projects, then drill into technical details."
+
+    accumulated: list[str] = []
+    async for chunk in stream_llm(system=system, user_message=start_msg, max_tokens=300):
+        accumulated.append(chunk)
+        yield {"type": "delta", "text": chunk}
+
+    first_question = "".join(accumulated)
+    project_name = docs[0].name if len(docs) == 1 else f"[{len(docs)} projects]"
+    state = InterviewState(
+        session_id=str(uuid.uuid4()),
+        jd_hash=parsed.jd_hash if parsed else "",
+        project_name=project_name,
+        history=[ChatTurn(role="interviewer", content=first_question)],
+        turn_count=1,
+    )
+    extra_state = {
+        "interview_type": interview_type,
+        "project_ids": project_ids if not is_comprehensive else [],
+        "language": language,
+    }
+    orm_row = InterviewSessionORM(
+        id=state.session_id,
+        user_id=user_id,
+        mode=mode,
+        jd_hash=parsed.jd_hash if parsed else "",
+        project_name=project_name,
+        state=_state_dump(state, parsed=parsed, extra=extra_state),
+    )
+    session.add(orm_row)
+    await session.commit()
+
+    yield {
+        "type": "done",
+        "session_id": state.session_id,
+        "turn_count": state.turn_count,
+    }
+
+
+async def _run_critique(
+    user_id: int,
+    last_question: str,
+    candidate_message: str,
+    session: AsyncSession,
+) -> dict[str, Any]:
+    """Run critique LLM call and persist weakness updates. Returns parsed critique dict."""
+    critique_raw = await call_llm(
+        system=CRITIQUE_SYSTEM,
+        user_message=f"Question: {last_question}\nAnswer: {candidate_message}",
+        max_tokens=200,
+    )
+    try:
+        critique = json.loads(critique_raw)
+    except json.JSONDecodeError:
+        critique = {"score": 3, "weakness_topics": [], "severity": "mild", "next_focus": None}
+
+    for topic in critique.get("weakness_topics") or []:
+        await _bump_weakness(
+            user_id, topic,
+            severity=critique.get("severity", "mild"),
+            summary=candidate_message,
+            session=session,
+        )
+    return critique
+
+
+async def take_turn_stream(
+    user_id: int,
+    session_id: str,
+    candidate_message: str,
+    session: AsyncSession,
+) -> AsyncIterator[dict[str, Any]]:
+    """Streaming version of take_turn. Critique runs concurrently with next-question
+    streaming so the user sees the next question immediately; critique surfaces as
+    the final event."""
+    row = await session.get(InterviewSessionORM, session_id)
+    if row is None or row.user_id != user_id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "interview session not found")
+
+    state, parsed, extra = _load_state(row)
+    interview_type = extra.get("interview_type", "targeted")
+    stored_project_ids = extra.get("project_ids", [])
+    is_comprehensive = interview_type == "comprehensive"
+
+    if is_comprehensive:
+        docs = await _load_all_projects(user_id, session)
+    elif stored_project_ids:
+        docs = await _load_projects(user_id, stored_project_ids, session)
+    else:
+        proj_rows = await session.execute(
+            select(Project).where(
+                Project.user_id == user_id, Project.name == state.project_name
+            ).limit(1)
+        )
+        proj = proj_rows.scalar_one_or_none()
+        if proj is None or not proj.doc:
+            raise HTTPException(
+                status.HTTP_409_CONFLICT,
+                "the project this interview was about has been deleted",
+            )
+        docs = [ProjectDoc.model_validate(proj.doc)]
+
+    state.history.append(ChatTurn(role="candidate", content=candidate_message))
+    last_question = state.history[-2].content if len(state.history) >= 2 else ""
+
+    # Fire critique in the background — it does not block next-question generation.
+    # Use a fresh session for the critique writer because the main session is being
+    # used to stream and we do not want concurrent writes on one connection.
+    critique_task = asyncio.create_task(
+        _run_critique(user_id, last_question, candidate_message, session)
+    )
+
+    # Use focus from PREVIOUS turn (already persisted in state.current_focus).
+    # New focus from this turn's critique is applied to NEXT turn's prompt.
+    weakness_text = await _user_weaknesses_text(user_id, session)
+    lang = extra.get("language", "en")
+    system = _build_interviewer_prompt(
+        docs=docs,
+        is_comprehensive=is_comprehensive,
+        parsed=parsed,
+        weakness_text=weakness_text,
+        focus=state.current_focus or "continue probing",
+        language=lang,
+    )
+
+    messages = [
+        {"role": "assistant" if t.role == "interviewer" else "user", "content": t.content}
+        for t in state.history
+    ]
+
+    accumulated: list[str] = []
+    async for chunk in stream_llm_chat(system=system, messages=messages, max_tokens=300):
+        accumulated.append(chunk)
+        yield {"type": "delta", "text": chunk}
+
+    next_question = "".join(accumulated)
+    state.history.append(ChatTurn(role="interviewer", content=next_question))
+    state.turn_count += 1
+
+    # Now wait for the critique to finish so we can update state.current_focus
+    # and surface it to the client.
+    critique = await critique_task
+    state.current_focus = critique.get("next_focus")
+
+    row.state = _state_dump(state, parsed=parsed, extra=extra)
+    await session.commit()
+
+    yield {
+        "type": "done",
+        "session_id": state.session_id,
         "turn_count": state.turn_count,
         "critique": critique,
     }
