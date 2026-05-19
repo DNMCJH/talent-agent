@@ -55,6 +55,12 @@ logs/
 *.log
 reports/
 
+# Node / Frontend
+node_modules/
+.next/
+.turbo/
+out/
+
 # Streamlit
 .streamlit/secrets.toml
 

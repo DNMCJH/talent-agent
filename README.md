@@ -1,129 +1,95 @@
-# talent-agent
+# Talent Agent
 
-Agentic JD-to-project matching platform. Indexes your real projects, matches against target JDs with a weighted-coverage scorer, generates PR-level improvement tasks, tailors STAR resume bullets, and runs adaptive mock interviews with cross-session weakness tracking.
+[中文文档](README_CN.md)
 
-> 中文版：[README_CN.md](README_CN.md)
+AI-powered career toolkit that matches your GitHub projects to job descriptions, runs adaptive mock interviews with real-time feedback, and generates tailored STAR resume bullets.
+
+> **V2 (current)**: Full-stack SaaS with Next.js frontend + FastAPI backend + multi-tenant vector search.
+> V1 was a local Streamlit prototype — see git history for the original.
 
 ## Why this exists
 
-Most "interview prep tools" hand you a generic project to clone. The moment an interviewer pulls up your git log, the story collapses. **talent-agent works against the projects you actually built** — it reads your READMEs, detects your stack, embeds them locally, and tells you exactly which one to pitch for a given JD plus what gap to close before the interview.
+Most "interview prep tools" hand you a generic project to clone. The moment an interviewer pulls up your git log, the story collapses. **Talent Agent works against the projects you actually built** — it reads your READMEs, detects your stack, embeds them, and tells you exactly which one to pitch for a given JD plus what gap to close before the interview.
 
-### Differentiation vs. shushu-internship-tool
+## Features
 
-| | shushu-internship-tool | talent-agent |
-|---|---|---|
-| Direction | JD listing → recommend candidates | Your projects → match a target JD |
-| Output | Filter & rank job posts | Match score + improvement plan + resume bullets + mock interview |
-| State | Stateless | Persistent: indexed projects, interview sessions, weakness tracking |
-| Personalization | None | Built around your real git history |
-
-## What it does
-
-```
-JD (paste) → Parse → Match against your indexed projects → Find gaps
-  → Generate 3-5 day improvement tasks (PR-level deliverables)
-  → Write STAR resume bullets
-  → Run adaptive mock interviews (weaknesses persist across sessions)
-```
-
-## Tech stack
-
-- **LLM**: DeepSeek API via OpenAI-compatible client (`deepseek-chat`)
-- **Embedding**: `BAAI/bge-small-zh-v1.5` local (95MB, 512-dim, bilingual)
-- **Vector DB**: Qdrant — local file mode for dev, server mode for prod
-- **State**: SQLite (sessions + cross-session weakness store)
-- **Orchestration**: Plain async Python — no LangChain runtime, no LangGraph
-- **UI**: Streamlit (single-page, two tabs)
-
-Five agents, all `async`: **Parser → Matcher → Improver → Rewriter → Interviewer**. See [ARCHITECTURE.md](ARCHITECTURE.md) for data contracts and the matching algorithm.
-
-## Quick start
-
-```powershell
-git clone <repo-url>
-cd talent-agent
-python -m venv .venv
-.\.venv\Scripts\Activate.ps1
-pip install -e ".[dev]"
-
-# Configure DeepSeek API key
-cp .env.example .env
-# Edit .env: set LLM_API_KEY=sk-...
-
-# Index your local projects (one-shot — re-run when you add new ones)
-talent-index
-
-# Run the UI
-talent-ui
-# → http://localhost:8501
-```
-
-Or use the CLI:
-
-```powershell
-$env:PYTHONIOENCODING="utf-8"; $env:TQDM_DISABLE="1"
-talent-match --jd data/sample_jd.txt --intent full_loop
-```
-
-`--intent` accepts: `match_only`, `improve_only`, `resume_only`, `interview_only`, `full_loop`.
-
-## Matching algorithm
-
-`weighted_score = 0.7 × must_coverage + 0.3 × plus_coverage`
-
-When the JD has no plus-skills, weighted collapses to pure must-coverage. This separates "Python-only matches" from "Python + RAG + AWS matches" instead of flattening every project to 100%.
-
-## Configuration
-
-Environment variables (all optional except `LLM_API_KEY`):
-
-```bash
-LLM_API_KEY=sk-...                          # required
-LLM_BASE_URL=https://api.deepseek.com       # OpenAI-compatible endpoint
-LLM_MODEL=deepseek-chat
-EMBED_MODEL=BAAI/bge-small-zh-v1.5
-EMBED_DEVICE=cpu                            # or "cuda"
-QDRANT_URL=                                 # empty = local file mode
-QDRANT_LOCAL_PATH=./data/qdrant_storage
-PROJECTS_ROOT=a:/VScode/Code/Projects       # what to index
-INDEX_EXCLUDE=["talent-agent",".git","node_modules",".venv"]
-STATE_DB=./data/state.sqlite
-```
+- **Smart Matching** — Paste any JD, get your projects ranked by skill coverage (blended: 50% must-skill + 30% plus-skill + 20% vector similarity)
+- **Mock Interviews** — AI interviewer adapts questions based on your project stack and target role; per-turn scoring and weakness detection
+- **Resume Generation** — STAR-format bullets tailored to specific JDs, with metric placeholders
+- **GitHub Integration** — OAuth login, browse & batch-import repos (public + private), auto-extract tech stack via LLM
+- **Bilingual UI** — Chinese/English toggle, instant switch
 
 ## Architecture
 
 ```
-┌──────────────────────────────────────────────────┐
-│  Streamlit UI  (Match & Plan │ Interview Drill)   │
-└──────────────────────────┬────────────────────────┘
-                           │
-              ┌────────────▼──────────────┐
-              │  Pipeline (async Python)   │
-              │                            │
-              │  Parser ─► Matcher ─► Improver  │
-              │                    └► Rewriter   │
-              │                    └► Interviewer │
-              └──────┬──────────┬─────────┬──────┘
-                     ▼          ▼         ▼
-                ┌────────┐  ┌────────┐  ┌────────┐
-                │ Qdrant │  │ SQLite │  │DeepSeek│
-                │projects│  │sessions│  │  API   │
-                └────────┘  └────────┘  └────────┘
+┌─────────────────┐        ┌──────────────────────────────────────┐
+│  Next.js 14     │───────▶│  FastAPI Backend                     │
+│  Auth.js v5     │        │  ┌────────────────────────────────┐  │
+│  shadcn/ui      │        │  │ 5-Agent Pipeline:               │  │
+│  SWR + i18n     │        │  │ Parser → Matcher → Improver    │  │
+│                 │        │  │ → Rewriter → Interviewer       │  │
+└─────────────────┘        │  └────────────────────────────────┘  │
+                           │  DeepSeek LLM (deepseek-chat)        │
+                           │  BGE-small-zh-v1.5 (512-dim embed)   │
+                           │  Qdrant (multi-tenant vector search) │
+                           │  PostgreSQL · Redis                   │
+                           └──────────────────────────────────────┘
 ```
+
+## Quick Start
+
+### Prerequisites
+
+- Docker & Docker Compose
+- Node.js 18+ & pnpm
+- GitHub OAuth App (callback: `http://localhost:3000/api/auth/callback/github`)
+
+### Backend
+
+```bash
+cd backend
+cp .env.example .env  # fill in API keys
+docker compose up -d
+```
+
+### Frontend
+
+```bash
+cd frontend
+cp .env.local.example .env.local
+pnpm install
+pnpm dev
+```
+
+Open http://localhost:3000
+
+## Matching Algorithm
+
+```
+blended_score = 0.5 × must_coverage + 0.3 × plus_coverage + 0.2 × vector_similarity
+```
+
+The parser extracts granular skills with aliases from the JD. When must_skills are few, vector similarity prevents all projects from scoring identically.
+
+## Tech Stack
+
+- **Frontend**: Next.js 14, TypeScript, Tailwind CSS, shadcn/ui, Auth.js v5, SWR
+- **Backend**: FastAPI, SQLAlchemy (async), Pydantic v2
+- **AI**: DeepSeek (OpenAI-compatible), BGE-small-zh-v1.5 (512-dim embeddings)
+- **Storage**: PostgreSQL, Qdrant (multi-tenant via payload filter), Redis
+- **Infra**: Docker Compose, pnpm
 
 ## Development
 
-```powershell
-pytest                       # 6 unit tests on matcher + parser
-ruff check src/ tests/
-ruff format src/ tests/
-mypy src/
+```bash
+# Backend
+cd backend && pytest
+ruff check . && ruff format .
+
+# Frontend
+cd frontend && pnpm lint && npx tsc --noEmit
 ```
-
-## Deploy
-
-See [docs/DEPLOY.md](docs/DEPLOY.md) for the Tencent Cloud VPS setup (Qdrant in Docker + Streamlit container + Caddy reverse proxy).
 
 ## License
 
-Apache-2.0
+MIT
