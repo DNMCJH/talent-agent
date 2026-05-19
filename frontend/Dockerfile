@@ -1,10 +1,9 @@
 FROM node:20-alpine AS base
-RUN corepack enable && corepack prepare pnpm@9 --activate
 
 FROM base AS deps
 WORKDIR /app
 COPY package.json pnpm-lock.yaml ./
-RUN pnpm install --frozen-lockfile
+RUN corepack enable && corepack prepare pnpm@9 --activate && pnpm install --frozen-lockfile
 
 FROM base AS builder
 WORKDIR /app
@@ -14,7 +13,7 @@ COPY . .
 ARG NEXT_PUBLIC_API_BASE
 ENV NEXT_PUBLIC_API_BASE=${NEXT_PUBLIC_API_BASE}
 
-RUN pnpm build
+RUN corepack enable && corepack prepare pnpm@9 --activate && pnpm run build
 
 FROM base AS runner
 WORKDIR /app
