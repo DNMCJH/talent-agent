@@ -15,12 +15,6 @@ import { useI18n } from "@/i18n/context";
 
 type Project = { id: number; name: string };
 type Critique = { score?: number; weakness_topics?: string[]; severity?: string; next_focus?: string | null };
-type TurnResponse = {
-  session_id: string;
-  interviewer_message: string;
-  turn_count: number;
-  critique?: Critique;
-};
 type ChatMsg = { role: "interviewer" | "candidate"; content: string; critique?: Critique };
 
 export default function InterviewPage() {
