@@ -13,7 +13,7 @@ COPY . .
 ARG NEXT_PUBLIC_API_BASE
 ENV NEXT_PUBLIC_API_BASE=${NEXT_PUBLIC_API_BASE}
 
-RUN corepack enable && corepack prepare pnpm@9 --activate && pnpm run build
+RUN npx next build
 
 FROM base AS runner
 WORKDIR /app
