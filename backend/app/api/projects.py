@@ -48,16 +48,11 @@ async def import_github(
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> ProjectOut:
-    """Synchronously fetch GitHub metadata, embed, persist. Returns 200 with the project row.
-
-    Synchronous (not background) for Phase 1 — fetch + embed is < 5s for typical repos.
-    Move to Redis/Celery if it grows to multiple LLM passes."""
     try:
         owner, repo = parse_github_url(body.github_url)
     except ValueError as e:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, str(e)) from e
 
-    # Dedup: refuse a re-import if this user already owns this repo.
     existing = await session.execute(
         select(Project).where(
             Project.user_id == user.id, Project.github_url == body.github_url
@@ -84,18 +79,23 @@ async def import_github(
         doc=doc.model_dump(),
     )
     session.add(project)
-    await session.flush()  # populate project.id
+    await session.flush()
 
-    text = project_doc_to_text(doc.name, doc.readme, doc.stack, doc.topics)
-    vector = embed_text(text)
-    await vector_store.ensure_projects_collection(vector_size=len(vector))
-    point_id = await vector_store.upsert_project(
-        user_id=user.id,
-        project_id=project.id,
-        vector=vector,
-        payload={"name": doc.name, "stack": doc.stack, "topics": doc.topics},
-    )
-    project.qdrant_point_id = point_id
+    try:
+        text = project_doc_to_text(doc.name, doc.readme, doc.stack, doc.topics)
+        vector = embed_text(text)
+        await vector_store.ensure_projects_collection(vector_size=len(vector))
+        point_id = await vector_store.upsert_project(
+            user_id=user.id,
+            project_id=project.id,
+            vector=vector,
+            payload={"name": doc.name, "stack": doc.stack, "topics": doc.topics},
+        )
+        project.qdrant_point_id = point_id
+    except Exception as e:
+        await session.rollback()
+        raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, f"embed failed: {e}") from e
+
     await session.commit()
     await session.refresh(project)
     return ProjectOut.model_validate(project)

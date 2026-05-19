@@ -286,17 +286,22 @@ export default function ProjectsPage() {
         });
         statuses[i].state = "done";
       } catch (e) {
-        statuses[i].state = "error";
-        statuses[i].error =
-          e instanceof ApiError ? e.message : String(e);
+        if (e instanceof ApiError && e.status === 409) {
+          statuses[i].state = "done";
+        } else {
+          statuses[i].state = "error";
+          statuses[i].error =
+            e instanceof ApiError ? e.message : String(e);
+        }
       }
       setBatchStatus([...statuses]);
+      mutate("/projects");
     }
 
     const ok = statuses.filter((s) => s.state === "done").length;
     const fail = statuses.filter((s) => s.state === "error").length;
     if (ok > 0) toast.success(`Imported ${ok} project${ok > 1 ? "s" : ""}`);
-    if (fail > 0) toast.error(`${fail} failed (duplicates or errors)`);
+    if (fail > 0) toast.error(`${fail} failed — try again later`);
     mutate("/projects");
   }
 
