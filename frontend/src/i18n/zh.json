@@ -1,0 +1,92 @@
+{
+  "nav": {
+    "projects": "项目",
+    "match": "匹配",
+    "interview": "面试",
+    "signOut": "退出"
+  },
+  "projects": {
+    "title": "项目管理",
+    "subtitle": "导入 GitHub 仓库，让匹配器根据任意 JD 对它们进行排名。",
+    "importTitle": "从 GitHub 导入",
+    "importDesc": "浏览你的仓库或直接粘贴链接。",
+    "placeholder": "https://github.com/owner/repo",
+    "import": "导入",
+    "browse": "浏览我的 GitHub 仓库",
+    "progress": "导入进度",
+    "yourProjects": "你的项目",
+    "loading": "加载中…",
+    "none": "暂无项目 — 请在上方导入。",
+    "deleteConfirm": "确定删除此项目？",
+    "imported": "项目已导入",
+    "deleted": "已删除"
+  },
+  "match": {
+    "title": "匹配",
+    "subtitle": "粘贴职位描述，我们会对你的项目进行排名。",
+    "jdTitle": "职位描述",
+    "placeholder": "在此粘贴 JD…",
+    "run": "开始匹配",
+    "parsed": "解析结果",
+    "must": "必须：",
+    "plus": "加分：",
+    "ranked": "项目排名",
+    "matched": "匹配：",
+    "missing": "缺失：",
+    "score": "得分",
+    "coverage": "覆盖率",
+    "mockInterview": "模拟面试",
+    "generateResume": "生成简历"
+  },
+  "interview": {
+    "title": "面试",
+    "subtitle": "与 AI 面试官练习，问题会根据你的项目和目标岗位动态调整。",
+    "targeted": "针对面试",
+    "targetedDesc": "选择特定项目深入面试，需要提供 JD。",
+    "comprehensive": "综合面试",
+    "comprehensiveDesc": "覆盖你的全部项目 — 技术广度、项目叙事、成长路径。",
+    "setup": "设置",
+    "projects": "项目",
+    "selectProjects": "选择项目…",
+    "selectAll": "全选",
+    "style": "风格",
+    "tech": "技术面",
+    "stress": "压力面",
+    "behavior": "行为面",
+    "jd": "职位描述",
+    "jdPlaceholder": "粘贴 JD…",
+    "jdOptional": "职位描述（可选）",
+    "jdOptionalHint": "如果提供，问题将围绕目标岗位展开。",
+    "allProjectsIncluded": "将覆盖你所有已导入的项目。",
+    "start": "开始面试",
+    "inProgress": "面试进行中",
+    "end": "结束会话",
+    "yourAnswer": "你的回答…",
+    "noProjects": "请先导入项目再开始面试。"
+  },
+  "repoBrowser": {
+    "title": "浏览你的 GitHub 仓库",
+    "desc": "选择要导入的仓库，每个都会被分析技能栈。",
+    "filter": "按名称或描述筛选...",
+    "noRepos": "未找到仓库。",
+    "imported": "已导入",
+    "importN": "导入 {n} 个仓库"
+  },
+  "login": {
+    "title": "Talent Agent",
+    "subtitle": "AI 驱动的项目匹配与面试准备",
+    "signIn": "使用 GitHub 登录"
+  },
+  "landing": {
+    "hero": "你的 AI 求职助手",
+    "heroSub": "将你的项目与职位描述匹配，通过 AI 反馈练习面试，生成定制化简历要点。",
+    "getStarted": "开始使用",
+    "features": "核心功能",
+    "feature1Title": "智能匹配",
+    "feature1Desc": "粘贴任意 JD，即刻看到哪些项目最能展示所需技能。",
+    "feature2Title": "模拟面试",
+    "feature2Desc": "与 AI 面试官练习，问题会根据你的项目和目标岗位动态调整。",
+    "feature3Title": "简历生成",
+    "feature3Desc": "生成针对特定 JD 定制的 STAR 格式简历要点。"
+  }
+}

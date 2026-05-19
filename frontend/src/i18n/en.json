@@ -1,0 +1,92 @@
+{
+  "nav": {
+    "projects": "Projects",
+    "match": "Match",
+    "interview": "Interview",
+    "signOut": "Sign out"
+  },
+  "projects": {
+    "title": "Projects",
+    "subtitle": "Import GitHub repos so the matcher can rank them against any JD.",
+    "importTitle": "Import from GitHub",
+    "importDesc": "Browse your repos or paste a URL directly.",
+    "placeholder": "https://github.com/owner/repo",
+    "import": "Import",
+    "browse": "Browse my GitHub repos",
+    "progress": "Import progress",
+    "yourProjects": "Your projects",
+    "loading": "Loading…",
+    "none": "None yet — import repos above.",
+    "deleteConfirm": "Delete this project?",
+    "imported": "Project imported",
+    "deleted": "Deleted"
+  },
+  "match": {
+    "title": "Match",
+    "subtitle": "Paste a job description; we'll rank your projects against it.",
+    "jdTitle": "Job description",
+    "placeholder": "Paste the JD here…",
+    "run": "Run match",
+    "parsed": "Parsed requirements",
+    "must": "Must:",
+    "plus": "Plus:",
+    "ranked": "Ranked projects",
+    "matched": "Matched:",
+    "missing": "Missing:",
+    "score": "score",
+    "coverage": "Coverage",
+    "mockInterview": "Mock Interview",
+    "generateResume": "Generate Resume"
+  },
+  "interview": {
+    "title": "Interview",
+    "subtitle": "Practice with an AI interviewer that adapts to your projects and target role.",
+    "targeted": "Targeted",
+    "targetedDesc": "Select specific projects to deep-dive on, with a required JD.",
+    "comprehensive": "Comprehensive",
+    "comprehensiveDesc": "Cover your full portfolio — technical breadth, project narrative, growth trajectory.",
+    "setup": "Setup",
+    "projects": "Projects",
+    "selectProjects": "Select projects…",
+    "selectAll": "Select all",
+    "style": "Style",
+    "tech": "Technical",
+    "stress": "Stress",
+    "behavior": "Behavioral",
+    "jd": "Job description",
+    "jdPlaceholder": "Paste JD…",
+    "jdOptional": "Job description (optional)",
+    "jdOptionalHint": "If provided, questions will focus on the target role.",
+    "allProjectsIncluded": "All your imported projects will be covered.",
+    "start": "Start interview",
+    "inProgress": "Interview in progress",
+    "end": "End session",
+    "yourAnswer": "Your answer…",
+    "noProjects": "Import projects first before starting an interview."
+  },
+  "repoBrowser": {
+    "title": "Browse your GitHub repos",
+    "desc": "Select repos to import. Each will be analyzed for skills.",
+    "filter": "Filter by name or description...",
+    "noRepos": "No repos found.",
+    "imported": "Imported",
+    "importN": "Import {n} repo(s)"
+  },
+  "login": {
+    "title": "Talent Agent",
+    "subtitle": "AI-powered project matching & interview prep",
+    "signIn": "Continue with GitHub"
+  },
+  "landing": {
+    "hero": "Your AI Career Agent",
+    "heroSub": "Match your projects to job descriptions, practice interviews with AI feedback, and generate tailored resume bullets.",
+    "getStarted": "Get Started",
+    "features": "Features",
+    "feature1Title": "Smart Matching",
+    "feature1Desc": "Paste any JD and instantly see which of your projects best demonstrate the required skills.",
+    "feature2Title": "Mock Interviews",
+    "feature2Desc": "Practice with an AI interviewer that adapts questions based on your project and the target role.",
+    "feature3Title": "Resume Generation",
+    "feature3Desc": "Generate STAR-format resume bullets tailored to specific job descriptions."
+  }
+}
