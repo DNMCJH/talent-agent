@@ -21,9 +21,9 @@ export default function LandingPage() {
   return (
     <div className="min-h-screen flex flex-col">
       <header className="border-b">
-        <div className="container max-w-7xl mx-auto flex h-14 items-center justify-between px-6">
-          <span className="font-semibold">Talent Agent</span>
-          <div className="flex items-center gap-3">
+        <div className="container max-w-7xl mx-auto flex h-14 items-center justify-between px-4 sm:px-6">
+          <span className="font-semibold text-sm sm:text-base">Talent Agent 人才经纪人</span>
+          <div className="flex items-center gap-2 sm:gap-3">
             <Button variant="ghost" size="sm" onClick={toggleLocale} className="text-xs px-2">
               {locale === "en" ? "中文" : "EN"}
             </Button>

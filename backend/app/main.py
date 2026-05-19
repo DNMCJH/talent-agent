@@ -1,10 +1,20 @@
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api import auth, interview, match, projects, resume
 from app.core.config import settings
 
-app = FastAPI(title="talent-agent API", version="0.2.0")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    from app.services.embedder import embed_text
+    embed_text("warmup")
+    yield
+
+
+app = FastAPI(title="talent-agent API", version="0.2.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,

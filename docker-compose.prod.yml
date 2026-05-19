@@ -1,0 +1,107 @@
+services:
+  qdrant:
+    image: qdrant/qdrant:v1.12.5
+    container_name: talent-qdrant
+    expose:
+      - "6333"
+    volumes:
+      - qdrant_data:/qdrant/storage
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: talent-postgres
+    environment:
+      POSTGRES_USER: talent
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-talent}
+      POSTGRES_DB: talent
+    expose:
+      - "5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U talent -d talent"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+
+  redis:
+    image: redis:7-alpine
+    container_name: talent-redis
+    expose:
+      - "6379"
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 64M
+
+  backend:
+    build: ./backend
+    container_name: talent-backend
+    ports:
+      - "9005:8000"
+    env_file:
+      - .env
+    environment:
+      POSTGRES_DSN: postgresql+asyncpg://talent:${POSTGRES_PASSWORD:-talent}@postgres:5432/talent
+      REDIS_URL: redis://redis:6379/0
+      QDRANT_URL: http://qdrant:6333
+      HF_ENDPOINT: https://hf-mirror.com
+      EMBED_MODEL: BAAI/bge-small-zh-v1.5
+      EMBED_DEVICE: cpu
+      HF_HOME: /app/.cache/huggingface
+    volumes:
+      - hf_cache:/app/.cache/huggingface
+    depends_on:
+      postgres:
+        condition: service_healthy
+      qdrant:
+        condition: service_started
+      redis:
+        condition: service_started
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 1200M
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        NEXT_PUBLIC_API_BASE: http://43.128.24.23:9005
+    container_name: talent-frontend
+    ports:
+      - "9004:3000"
+    environment:
+      NEXTAUTH_URL: http://43.128.24.23:9004
+      AUTH_SECRET: ${AUTH_SECRET}
+      AUTH_GITHUB_ID: ${AUTH_GITHUB_ID}
+      AUTH_GITHUB_SECRET: ${AUTH_GITHUB_SECRET}
+      NEXT_PUBLIC_API_BASE: http://43.128.24.23:9005
+      AUTH_TRUST_HOST: "true"
+    depends_on:
+      - backend
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 200M
+
+volumes:
+  qdrant_data:
+  postgres_data:
+  redis_data:
+  hf_cache:

@@ -19,18 +19,18 @@ export function Nav() {
 
   return (
     <header className="sticky top-0 z-10 bg-gradient-to-r from-zinc-900 via-zinc-800 to-zinc-900 text-white shadow-lg">
-      <div className="container max-w-7xl mx-auto flex h-14 items-center justify-between px-6">
-        <div className="flex items-center gap-10">
-          <Link href="/" className="text-2xl font-bold tracking-tight">
+      <div className="container max-w-7xl mx-auto flex h-14 items-center justify-between px-4 sm:px-6">
+        <div className="flex items-center gap-4 sm:gap-10 min-w-0">
+          <Link href="/" className="text-lg sm:text-2xl font-bold tracking-tight shrink-0">
             Talent Agent
           </Link>
-          <nav className="flex gap-2">
+          <nav className="flex gap-1 sm:gap-2 overflow-x-auto">
             {links.map((l) => (
               <Link
                 key={l.href}
                 href={l.href}
                 className={cn(
-                  "px-4 py-1.5 rounded-md text-[15px] transition-colors",
+                  "px-2 sm:px-4 py-1.5 rounded-md text-xs sm:text-[15px] whitespace-nowrap transition-colors",
                   pathname?.startsWith(l.href)
                     ? "bg-white/15 text-white font-semibold"
                     : "text-zinc-300 hover:text-white hover:bg-white/10",
@@ -41,7 +41,7 @@ export function Nav() {
             ))}
           </nav>
         </div>
-        <div className="flex items-center gap-3 text-sm">
+        <div className="flex items-center gap-2 sm:gap-3 text-sm shrink-0">
           <button
             onClick={toggleLocale}
             className="px-2 py-1 rounded text-xs text-zinc-300 hover:text-white hover:bg-white/10 transition-colors"
@@ -49,11 +49,11 @@ export function Nav() {
             {locale === "en" ? "中文" : "EN"}
           </button>
           {session?.githubLogin && (
-            <span className="text-zinc-400">@{session.githubLogin}</span>
+            <span className="hidden sm:inline text-zinc-400">@{session.githubLogin}</span>
           )}
           <button
             onClick={() => signOut({ callbackUrl: "/login" })}
-            className="px-2 py-1 rounded text-sm text-zinc-300 hover:text-white hover:bg-white/10 transition-colors"
+            className="px-2 py-1 rounded text-xs sm:text-sm text-zinc-300 hover:text-white hover:bg-white/10 transition-colors"
           >
             {t.nav.signOut}
           </button>
