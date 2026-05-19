@@ -42,7 +42,20 @@ export default function InterviewPage() {
     const pid = searchParams.get("project_id");
     const jdParam = searchParams.get("jd");
     if (pid) setSelectedIds([Number(pid)]);
-    if (jdParam) setJd(jdParam);
+    if (jdParam) {
+      setJd(jdParam);
+      return;
+    }
+    // Fallback: pick up the JD the user was last working on in the match page.
+    try {
+      const raw = sessionStorage.getItem("talent-agent.match.v1");
+      if (raw) {
+        const parsed = JSON.parse(raw) as { jd?: string };
+        if (parsed.jd) setJd(parsed.jd);
+      }
+    } catch {
+      // ignore
+    }
   }, [searchParams]);
 
   const [sessionId, setSessionId] = useState<string | null>(null);

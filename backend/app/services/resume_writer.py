@@ -23,6 +23,7 @@ Tailor language to match the JD's tone (enterprise vs startup, English vs Chines
 async def rewrite_resume(
     match_result: MatchResult,
     plan: ImprovementPlan | None = None,
+    language: str = "en",
 ) -> ResumeBundle:
     best = match_result.overall_best
     jd = match_result.jd
@@ -45,8 +46,14 @@ Missing skills (candidate is working on these): {best.missing_skills}"""
         completed_tasks = [t.title for t in plan.tasks[:3]]
         context += f"\n\nImprovement tasks completed/planned: {completed_tasks}"
 
+    lang_instr = (
+        "\n\nIMPORTANT: Write all bullets and the project_title in Chinese (Mandarin). "
+        "Keep technology names (e.g. FastAPI, Docker) in original English casing."
+        if language == "zh"
+        else "\n\nIMPORTANT: Write all bullets and the project_title in English."
+    )
     return await call_llm_structured(
-        system=SYSTEM_PROMPT,
+        system=SYSTEM_PROMPT + lang_instr,
         user_message=context,
         output_schema=ResumeBundle,
     )

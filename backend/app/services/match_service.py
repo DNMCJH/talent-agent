@@ -18,7 +18,7 @@ from app.core.llm import call_llm
 from app.models.project import Project
 from app.schemas.agent_models import Match, MatchResult, ParsedJD, ProjectDoc
 from app.services import vector_store
-from app.services.embedder import embed_text
+from app.services.embedder import embed_text, embed_texts
 
 
 def _normalize_skill(name: str) -> str:
@@ -49,12 +49,46 @@ def _score(project: ProjectDoc, jd: ParsedJD):
     return must_cov, plus_cov, weighted, matched_must, missing_must, matched_plus
 
 
+def _cosine(a: list[float], b: list[float]) -> float:
+    # Vectors come pre-normalized from BGE (normalize_embeddings=True), so dot == cosine.
+    return sum(x * y for x, y in zip(a, b))
+
+
+def _semantic_rescue(
+    project: ProjectDoc,
+    missing: list[str],
+    skill_vecs: dict[str, list[float]],
+    project_vec: list[float],
+    threshold: float = 0.55,
+) -> tuple[list[str], list[str]]:
+    """Move missing skills to matched if BGE cosine(skill, project) >= threshold.
+
+    Threshold 0.55 calibrated for BGE-zh: "PyTorch" vs a Python ML project hits ~0.6;
+    unrelated skills stay well below 0.5.
+    """
+    if not missing:
+        return [], missing
+    rescued: list[str] = []
+    still_missing: list[str] = []
+    for name in missing:
+        vec = skill_vecs.get(name)
+        if vec is None:
+            still_missing.append(name)
+            continue
+        if _cosine(vec, project_vec) >= threshold:
+            rescued.append(name)
+        else:
+            still_missing.append(name)
+    return rescued, still_missing
+
+
 async def match_for_user(
     user_id: int,
     raw_jd: str,
     session: AsyncSession,
     *,
     top_k: int = 5,
+    language: str = "en",
 ) -> MatchResult:
     parsed = await parse_jd(raw_jd)
 
@@ -80,19 +114,58 @@ async def match_for_user(
     )
     projects_by_id = {p.id: p for p in rows.scalars()}
 
-    matches: list[Match] = []
+    # Pre-compute BGE vectors so semantic rescue is one batch call instead of N small ones.
+    # Skill vec: embed the skill name. Project vec: short "stack + topics" string —
+    # NOT the full readme, because we want to match against advertised skills, not random
+    # text that happens to mention a buzzword once.
+    must_names = [s.name for s in parsed.must_skills]
+    plus_names = [s.name for s in parsed.plus_skills]
+    all_skill_names = list(dict.fromkeys(must_names + plus_names))  # dedupe, preserve order
+    skill_vec_list = embed_texts(all_skill_names) if all_skill_names else []
+    skill_vecs = dict(zip(all_skill_names, skill_vec_list))
+
+    candidate_docs: dict[int, ProjectDoc] = {}
     for pid in project_ids:
         proj_row = projects_by_id.get(pid)
         if proj_row is None or not proj_row.doc:
             continue
-        project = ProjectDoc.model_validate(proj_row.doc)
+        candidate_docs[pid] = ProjectDoc.model_validate(proj_row.doc)
+    project_texts = [
+        f"{d.name}. Stack: {', '.join(d.stack)}. Topics: {', '.join(d.topics)}"
+        for d in candidate_docs.values()
+    ]
+    project_vec_list = embed_texts(project_texts) if project_texts else []
+    project_vecs = dict(zip(candidate_docs.keys(), project_vec_list))
+
+    matches: list[Match] = []
+    for pid, project in candidate_docs.items():
         must_cov, plus_cov, weighted, matched, missing, matched_plus = _score(project, parsed)
-        # Include vector similarity from Qdrant as a signal
+
+        # Semantic rescue: skills that didn't string-match but are conceptually close.
+        proj_vec = project_vecs.get(pid)
+        rescued_must, missing = (
+            _semantic_rescue(project, missing, skill_vecs, proj_vec) if proj_vec else ([], missing)
+        )
+        if rescued_must:
+            matched = matched + rescued_must
+            if len(parsed.must_skills):
+                must_cov = len(matched) / len(parsed.must_skills)
+
+        # Same rescue for plus skills (against the still-unmatched plus list).
+        unmatched_plus = [s for s in plus_names if s not in matched_plus]
+        rescued_plus, _ = (
+            _semantic_rescue(project, unmatched_plus, skill_vecs, proj_vec) if proj_vec else ([], unmatched_plus)
+        )
+        if rescued_plus:
+            matched_plus = matched_plus + rescued_plus
+            if len(parsed.plus_skills):
+                plus_cov = len(matched_plus) / len(parsed.plus_skills)
+
         vector_score = next(
             (p.score for p in points if p.payload and p.payload.get("project_id") == pid),
             0.0,
         )
-        # Blend: 50% skill coverage + 30% plus coverage + 20% vector similarity
+        # Skill coverage is the strongest signal; vector similarity is the tiebreaker.
         blended = 0.5 * must_cov + 0.3 * plus_cov + 0.2 * (vector_score or 0.0)
         if matched or matched_plus or (vector_score and vector_score > 0.5):
             bonus = [
@@ -115,9 +188,15 @@ async def match_for_user(
     matches.sort(key=lambda m: (-m.weighted_score, -int(m.project.deployment_signal)))
     top = matches[:top_k]
 
+    lang_instr = (
+        "Respond in Chinese (Mandarin)." if language == "zh" else "Respond in English."
+    )
     async def _gen_reason(m: Match) -> None:
         m.match_reason = await call_llm(
-            system="Generate a one-sentence explanation of why this project matches the JD. Be specific about which skills overlap.",
+            system=(
+                "Generate a one-sentence explanation of why this project matches the JD. "
+                "Be specific about which skills overlap. " + lang_instr
+            ),
             user_message=(
                 f"JD role: {parsed.role} at {parsed.company}\n"
                 f"Required: {[s.name for s in parsed.must_skills]}\n"

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useApi, ApiError } from "@/lib/api";
 import { Button } from "@/components/ui/button";
@@ -48,10 +48,37 @@ type ResumeData = {
 export default function MatchPage() {
   const api = useApi();
   const router = useRouter();
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const [jd, setJd] = useState("");
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<MatchResult | null>(null);
+
+  // Restore JD + last result from sessionStorage so navigating away and back keeps state.
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem("talent-agent.match.v1");
+      if (raw) {
+        const parsed = JSON.parse(raw) as { jd?: string; result?: MatchResult };
+        if (parsed.jd) setJd(parsed.jd);
+        if (parsed.result) setResult(parsed.result);
+      }
+    } catch {
+      // ignore malformed cache
+    }
+  }, []);
+
+  // Persist JD as user types so a hot reload / accidental navigation does not lose work.
+  useEffect(() => {
+    if (!jd && !result) return;
+    try {
+      sessionStorage.setItem(
+        "talent-agent.match.v1",
+        JSON.stringify({ jd, result }),
+      );
+    } catch {
+      // quota exceeded — ignore
+    }
+  }, [jd, result]);
   const [resumeLoading, setResumeLoading] = useState<number | null>(null);
   const [resumeData, setResumeData] = useState<ResumeData | null>(null);
   const [resumeOpen, setResumeOpen] = useState(false);
@@ -62,7 +89,7 @@ export default function MatchPage() {
     setLoading(true);
     setResult(null);
     try {
-      const r = await api.post<MatchResult>("/match", { raw_jd: jd, top_k: 5 }, 120_000);
+      const r = await api.post<MatchResult>("/match", { raw_jd: jd, top_k: 5, language: locale }, 120_000);
       setResult(r);
     } catch (e) {
       const msg = e instanceof ApiError ? e.message : String(e);
@@ -78,6 +105,7 @@ export default function MatchPage() {
       const res = await api.post<ResumeData>("/resume", {
         project_id: projectId,
         raw_jd: jd,
+        language: locale,
       }, 90_000);
       setResumeData(res);
       setResumeOpen(true);
@@ -116,10 +144,29 @@ export default function MatchPage() {
             rows={8}
             disabled={loading}
           />
-          <Button onClick={onMatch} disabled={loading || !jd.trim()}>
-            {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            {t.match.run}
-          </Button>
+          <div className="flex gap-2">
+            <Button onClick={onMatch} disabled={loading || !jd.trim()}>
+              {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {t.match.run}
+            </Button>
+            {(jd || result) && (
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setJd("");
+                  setResult(null);
+                  try {
+                    sessionStorage.removeItem("talent-agent.match.v1");
+                  } catch {
+                    // ignore
+                  }
+                }}
+                disabled={loading}
+              >
+                {t.match.clear}
+              </Button>
+            )}
+          </div>
         </CardContent>
       </Card>
 
@@ -159,7 +206,7 @@ export default function MatchPage() {
                   </Badge>
                 </div>
                 <CardDescription>
-                  {t.match.coverage} {(m.coverage * 100).toFixed(0)}% · Plus {(m.plus_coverage * 100).toFixed(0)}%
+                  {t.match.coverage} {(m.coverage * 100).toFixed(0)}% · {t.match.plusCoverage} {(m.plus_coverage * 100).toFixed(0)}%
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-2 text-sm">

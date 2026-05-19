@@ -14,6 +14,7 @@ router = APIRouter()
 class MatchIn(BaseModel):
     raw_jd: str
     top_k: int = 5
+    language: str = "en"
 
 
 @router.post("", response_model=MatchResult)
@@ -23,5 +24,9 @@ async def run_match(
     session: AsyncSession = Depends(get_session),
 ) -> MatchResult:
     return await match_for_user(
-        user_id=user.id, raw_jd=body.raw_jd, session=session, top_k=body.top_k
+        user_id=user.id,
+        raw_jd=body.raw_jd,
+        session=session,
+        top_k=body.top_k,
+        language=body.language,
     )

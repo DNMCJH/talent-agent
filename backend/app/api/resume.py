@@ -22,6 +22,7 @@ router = APIRouter()
 class ResumeIn(BaseModel):
     project_id: int
     raw_jd: str
+    language: str = "en"
 
 
 @router.post("", response_model=ResumeBundle)
@@ -54,4 +55,4 @@ async def generate_resume(
     )
 
     single = MatchResult(jd=parsed, matches=[chosen], overall_best=chosen)
-    return await rewrite_resume(single, plan=None)
+    return await rewrite_resume(single, plan=None, language=body.language)
