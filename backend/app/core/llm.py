@@ -5,20 +5,24 @@ from __future__ import annotations
 import json
 from typing import Any, TypeVar
 
-from openai import OpenAI
+from openai import AsyncOpenAI
 from pydantic import BaseModel
 
 from app.core.config import settings
 
 T = TypeVar("T", bound=BaseModel)
 
-_client: OpenAI | None = None
+_client: AsyncOpenAI | None = None
 
 
-def get_client() -> OpenAI:
+def get_client() -> AsyncOpenAI:
     global _client
     if _client is None:
-        _client = OpenAI(api_key=settings.llm_api_key, base_url=settings.llm_base_url)
+        _client = AsyncOpenAI(
+            api_key=settings.llm_api_key,
+            base_url=settings.llm_base_url,
+            timeout=60.0,
+        )
     return _client
 
 
@@ -31,7 +35,7 @@ async def call_llm(
     temperature: float = 0.3,
 ) -> str:
     client = get_client()
-    resp = client.chat.completions.create(
+    resp = await client.chat.completions.create(
         model=model or settings.llm_model,
         max_tokens=max_tokens,
         temperature=temperature,
@@ -110,7 +114,7 @@ async def call_llm_structured(
     schema = output_schema.model_json_schema()
     func_name = f"output_{output_schema.__name__}"
 
-    resp = client.chat.completions.create(
+    resp = await client.chat.completions.create(
         model=model or settings.llm_model,
         max_tokens=max_tokens,
         temperature=temperature,
@@ -155,7 +159,7 @@ async def call_llm_chat(
 ) -> str:
     client = get_client()
     full_messages = [{"role": "system", "content": system}] + messages
-    resp = client.chat.completions.create(
+    resp = await client.chat.completions.create(
         model=model or settings.llm_model,
         max_tokens=max_tokens,
         temperature=temperature,

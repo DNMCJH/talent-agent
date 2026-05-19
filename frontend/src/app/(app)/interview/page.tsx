@@ -75,7 +75,7 @@ export default function InterviewPage() {
         mode: interviewType === "targeted" ? mode : "comprehensive",
         raw_jd: jd,
         language,
-      });
+      }, 120_000);
       setSessionId(r.session_id);
       setMessages([{ role: "interviewer", content: r.interviewer_message }]);
     } catch (e) {
@@ -96,7 +96,7 @@ export default function InterviewPage() {
       const r = await api.post<TurnResponse>("/interview/turn", {
         session_id: sessionId,
         candidate_message: msg,
-      });
+      }, 90_000);
       setMessages((m) => [
         ...m.slice(0, -1),
         { ...m[m.length - 1], critique: r.critique },
@@ -276,7 +276,7 @@ export default function InterviewPage() {
 
             <Button onClick={onStart} disabled={starting || !canStart}>
               {starting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              {t.interview.start}
+              {starting ? (language === "zh" ? "AI 正在准备面试…" : "AI preparing interview…") : t.interview.start}
             </Button>
           </CardContent>
         </Card>

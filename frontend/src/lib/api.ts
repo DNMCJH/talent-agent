@@ -15,12 +15,30 @@ export async function apiFetch<T>(
   path: string,
   token: string | undefined,
   init: RequestInit = {},
+  timeoutMs?: number,
 ): Promise<T> {
   const headers = new Headers(init.headers);
   headers.set("Content-Type", "application/json");
   if (token) headers.set("Authorization", `Bearer ${token}`);
 
-  const res = await fetch(`${API_BASE}${path}`, { ...init, headers });
+  let signal = init.signal;
+  let controller: AbortController | undefined;
+  if (timeoutMs && !signal) {
+    controller = new AbortController();
+    signal = controller.signal;
+    setTimeout(() => controller!.abort(), timeoutMs);
+  }
+
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE}${path}`, { ...init, headers, signal });
+  } catch (e) {
+    if (e instanceof DOMException && e.name === "AbortError") {
+      throw new ApiError(408, "请求超时，AI 响应较慢，请稍后重试");
+    }
+    throw new ApiError(0, "网络错误，请检查连接后重试");
+  }
+
   if (!res.ok) {
     let detail = `${res.status}`;
     try {
@@ -43,8 +61,8 @@ export function useApi() {
   return {
     token,
     get: <T,>(p: string) => apiFetch<T>(p, token ?? undefined),
-    post: <T,>(p: string, body: unknown) =>
-      apiFetch<T>(p, token ?? undefined, { method: "POST", body: JSON.stringify(body) }),
+    post: <T,>(p: string, body: unknown, timeoutMs?: number) =>
+      apiFetch<T>(p, token ?? undefined, { method: "POST", body: JSON.stringify(body) }, timeoutMs),
     del: <T,>(p: string) =>
       apiFetch<T>(p, token ?? undefined, { method: "DELETE" }),
   };
