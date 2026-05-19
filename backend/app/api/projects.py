@@ -3,6 +3,7 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import settings
 from app.core.db import get_session
 from app.core.deps import get_current_user
 from app.models.project import Project
@@ -67,7 +68,7 @@ async def import_github(
         )
 
     try:
-        doc = await scan_github_repo(body.github_url)
+        doc = await scan_github_repo(body.github_url, token=settings.github_token or None)
     except ValueError as e:
         raise HTTPException(status.HTTP_404_NOT_FOUND, str(e)) from e
     except Exception as e:

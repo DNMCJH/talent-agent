@@ -26,6 +26,7 @@ class Settings(BaseSettings):
     # GitHub OAuth (verified on the API; UI uses NextAuth.js)
     github_client_id: str = ""
     github_client_secret: str = ""
+    github_token: str = ""
 
     # API
     api_cors_origins: list[str] = ["http://localhost:3000"]

@@ -61,3 +61,4 @@ reports/
 # Personal handoff / resume prompts (not source)
 PHASE*_PROMPT.md
 RESUME_PROMPT.md
+.model_cache/

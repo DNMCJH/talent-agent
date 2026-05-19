@@ -18,7 +18,7 @@ COPY pyproject.toml ./
 RUN uv pip install --system \
     "fastapi>=0.115.0" "uvicorn[standard]>=0.32.0" "httpx>=0.27.0" "pyjwt>=2.9.0" \
     "sqlalchemy[asyncio]>=2.0.35" "asyncpg>=0.30.0" "alembic>=1.13.0" "redis>=5.1.0" \
-    "qdrant-client>=1.12.0" "sentence-transformers>=3.0.0" \
+    "qdrant-client>=1.12.0" "sentence-transformers>=3.0.0,<4.0.0" "transformers>=4.38.0,<5.0.0" \
     "openai>=1.50.0" "pydantic>=2.9.0" "pydantic-settings>=2.5.0" "gitpython>=3.1.40"
 
 COPY app ./app

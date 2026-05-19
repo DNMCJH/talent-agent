@@ -88,13 +88,14 @@ async def search_projects(
     because the user_id filter is applied server-side by Qdrant."""
     client = _client()
     name = settings.qdrant_collection_projects
-    return await client.search(
+    res = await client.query_points(
         collection_name=name,
-        query_vector=query_vector,
+        query=query_vector,
         query_filter=_user_filter(user_id),
         limit=limit,
         score_threshold=score_threshold,
     )
+    return res.points
 
 
 async def delete_project(user_id: int, project_id: int) -> None:

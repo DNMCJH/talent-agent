@@ -46,11 +46,14 @@ async def call_llm(
 def _fix_stringified_fields(data: dict[str, Any]) -> dict[str, Any]:
     """Some models return list/dict fields as JSON strings. Parse them back."""
     for key, value in data.items():
-        if isinstance(value, str) and value.startswith(("[", "{")):
-            try:
-                data[key] = json.loads(value)
-            except (json.JSONDecodeError, ValueError):
-                pass
+        if isinstance(value, str):
+            if value == "null":
+                data[key] = None
+            elif value.startswith(("[", "{")):
+                try:
+                    data[key] = json.loads(value)
+                except (json.JSONDecodeError, ValueError):
+                    pass
         elif isinstance(value, dict):
             data[key] = _fix_stringified_fields(value)
     return data

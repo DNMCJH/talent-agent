@@ -42,6 +42,11 @@ services:
       POSTGRES_DSN: postgresql+asyncpg://talent:talent@postgres:5432/talent
       REDIS_URL: redis://redis:6379/0
       QDRANT_URL: http://qdrant:6333
+      HF_ENDPOINT: https://hf-mirror.com
+      HF_HUB_OFFLINE: "1"
+      EMBED_MODEL: /models/bge-small-zh-v1.5
+    volumes:
+      - ./.model_cache/BAAI/bge-small-zh-v1___5:/models/bge-small-zh-v1.5:ro
     depends_on:
       postgres:
         condition: service_healthy
