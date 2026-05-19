@@ -327,29 +327,35 @@ export default function ProjectsPage() {
           <CardDescription>{t.projects.importDesc}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
-          <div className="flex gap-2">
-            <Input
-              placeholder={t.projects.placeholder}
-              value={url}
-              onChange={(e) => setUrl(e.target.value)}
-              disabled={importing}
-            />
-            <Button
-              onClick={onImportSingle}
-              disabled={importing || !url.trim()}
-            >
-              {importing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              {t.projects.import}
-            </Button>
-          </div>
           <Button
-            variant="outline"
+            variant="default"
             onClick={() => setBrowseOpen(true)}
             className="w-full"
           >
             <GitFork className="mr-2 h-4 w-4" />
             {t.projects.browse}
           </Button>
+          <details className="text-sm">
+            <summary className="cursor-pointer text-muted-foreground hover:text-foreground">
+              {t.projects.browseByUrl}
+            </summary>
+            <div className="flex gap-2 mt-2">
+              <Input
+                placeholder={t.projects.placeholder}
+                value={url}
+                onChange={(e) => setUrl(e.target.value)}
+                disabled={importing}
+              />
+              <Button
+                onClick={onImportSingle}
+                disabled={importing || !url.trim()}
+                size="sm"
+              >
+                {importing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                {t.projects.import}
+              </Button>
+            </div>
+          </details>
         </CardContent>
       </Card>
 

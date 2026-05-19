@@ -3,8 +3,7 @@
 import { useSession } from "next-auth/react";
 import { useAuth } from "@/lib/auth-context";
 
-export const API_BASE =
-  process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8000";
+export const API_BASE = "/api/backend";
 
 export class ApiError extends Error {
   constructor(public status: number, message: string) {

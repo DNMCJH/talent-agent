@@ -111,9 +111,15 @@ export default function LoginPage() {
           >
             {t.login.signIn} (GitHub)
           </Button>
+          <p className="text-xs text-center text-muted-foreground">
+            {locale === "zh"
+              ? "连接 GitHub 账号可导入私有仓库"
+              : "Link GitHub to import private repos"}
+          </p>
 
           <div className="text-center">
             <button
+              type="button"
               onClick={toggleLocale}
               className="text-xs text-muted-foreground hover:text-foreground"
             >

@@ -8,11 +8,12 @@
   "projects": {
     "title": "项目管理",
     "subtitle": "导入 GitHub 仓库，让匹配器根据任意 JD 对它们进行排名。",
-    "importTitle": "从 GitHub 导入",
-    "importDesc": "浏览你的仓库或直接粘贴链接。",
+    "importTitle": "导入项目",
+    "importDesc": "输入 GitHub 用户名快速导入公开仓库。连接 GitHub 账号可导入私有仓库。",
     "placeholder": "https://github.com/owner/repo",
     "import": "导入",
-    "browse": "浏览我的 GitHub 仓库",
+    "browse": "浏览 GitHub 仓库",
+    "browseByUrl": "或直接粘贴仓库链接导入",
     "progress": "导入进度",
     "yourProjects": "你的项目",
     "loading": "加载中…",
@@ -78,7 +79,7 @@
   "login": {
     "title": "Talent Agent",
     "subtitle": "AI 驱动的项目匹配与面试准备",
-    "signIn": "使用 GitHub 登录"
+    "signIn": "登录"
   },
   "landing": {
     "hero": "你的 AI 求职助手",

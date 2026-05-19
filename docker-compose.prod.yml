@@ -91,6 +91,7 @@ services:
       AUTH_GITHUB_ID: ${AUTH_GITHUB_ID}
       AUTH_GITHUB_SECRET: ${AUTH_GITHUB_SECRET}
       NEXT_PUBLIC_API_BASE: http://43.128.24.23:9005
+      INTERNAL_API_BASE: http://talent-backend:8000
       AUTH_TRUST_HOST: "true"
     depends_on:
       - backend

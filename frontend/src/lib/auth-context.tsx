@@ -1,7 +1,8 @@
 "use client";
 
 import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from "react";
-import { API_BASE } from "@/lib/api";
+
+const API_BASE = "/api/backend";
 
 type AuthState = {
   token: string | null;
