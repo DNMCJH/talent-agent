@@ -2,6 +2,25 @@
 
 目标：确认 `docker compose up -d` 起得来，`GET /health` 返回 200，Alembic 能在 Postgres 里建表。
 
+## TL;DR — WSL2 Ubuntu 一键脚本
+
+```bash
+cd /mnt/a/VScode/Code/Projects/talent-agent
+
+# 装 docker（需要 sudo NOPASSWD，否则中途会问密码）
+bash scripts/install_docker_wsl.sh
+
+# 境内必跑：换 docker registry 镜像源（否则拉 docker.io 卡 TLS handshake）
+bash scripts/setup_docker_mirror.sh
+
+# 跑 smoke test（自动 .env、起容器、alembic migrate、curl /health）
+bash scripts/smoke_test.sh
+```
+
+脚本自动复制 `.env.example → .env`、生成随机 `API_SECRET`、起 4 个容器、等 postgres healthy、alembic autogenerate+upgrade、把 migration 拷回宿主、curl /health + /auth/me + /match 验证。
+
+下方是手动版（脚本失败时 debug 用）。
+
 ## 前置准备
 
 ### 装 Docker（WSL2 Ubuntu，推荐）
