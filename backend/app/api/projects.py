@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+import httpx
 
 from app.core.config import settings
 from app.core.db import get_session
@@ -109,10 +110,45 @@ async def delete_project(
     project = await session.get(Project, project_id)
     if project is None or project.user_id != user.id:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "project not found")
-    # Vector deletion is best-effort: even if Qdrant is down, DB delete should succeed.
     try:
         await vector_store.delete_project(user_id=user.id, project_id=project.id)
     except Exception:
         pass
     await session.delete(project)
     await session.commit()
+
+
+class GitHubUserReposIn(BaseModel):
+    username: str
+
+
+class RepoOut(BaseModel):
+    full_name: str
+    html_url: str
+    description: str | None = None
+    language: str | None = None
+    stargazers_count: int = 0
+    pushed_at: str | None = None
+
+
+@router.post("/repos/github-user", response_model=list[RepoOut])
+async def list_github_user_repos(
+    body: GitHubUserReposIn,
+    user: User = Depends(get_current_user),
+) -> list[RepoOut]:
+    """Fetch public repos for a GitHub username using server-side token."""
+    headers = {"Accept": "application/vnd.github+json"}
+    if settings.github_token:
+        headers["Authorization"] = f"Bearer {settings.github_token}"
+    async with httpx.AsyncClient(timeout=15.0) as client:
+        resp = await client.get(
+            f"https://api.github.com/users/{body.username}/repos",
+            params={"sort": "pushed", "per_page": 100, "type": "owner"},
+            headers=headers,
+        )
+    if resp.status_code == 404:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, f"GitHub user '{body.username}' not found")
+    if resp.status_code != 200:
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, f"GitHub API error: {resp.status_code}")
+    repos = resp.json()
+    return [RepoOut(**{k: r.get(k) for k in RepoOut.model_fields}) for r in repos if not r.get("fork")]

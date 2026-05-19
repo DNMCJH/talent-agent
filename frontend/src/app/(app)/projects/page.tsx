@@ -69,12 +69,14 @@ function RepoBrowser({
   importedUrls: Set<string>;
 }) {
   const { data: session } = useSession();
-  const { t } = useI18n();
+  const api = useApi();
+  const { t, locale } = useI18n();
   const ghToken = session?.githubAccessToken;
   const [repos, setRepos] = useState<GHRepo[]>([]);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [username, setUsername] = useState("");
 
   const fetchRepos = useCallback(async () => {
     if (!ghToken) return;
@@ -94,9 +96,23 @@ function RepoBrowser({
     }
   }, [ghToken]);
 
+  async function fetchByUsername() {
+    if (!username.trim()) return;
+    setLoading(true);
+    try {
+      const data = await api.post<GHRepo[]>("/projects/repos/github-user", { username: username.trim() });
+      setRepos(data);
+    } catch (e) {
+      const msg = e instanceof ApiError ? e.message : String(e);
+      toast.error(msg);
+    } finally {
+      setLoading(false);
+    }
+  }
+
   useEffect(() => {
-    if (open && repos.length === 0) fetchRepos();
-  }, [open, fetchRepos, repos.length]);
+    if (open && ghToken && repos.length === 0) fetchRepos();
+  }, [open, fetchRepos, ghToken, repos.length]);
 
   const filtered = repos.filter(
     (r) =>
@@ -128,6 +144,19 @@ function RepoBrowser({
           <DialogTitle>{t.repoBrowser.title}</DialogTitle>
           <DialogDescription>{t.repoBrowser.desc}</DialogDescription>
         </DialogHeader>
+        {!ghToken && repos.length === 0 && (
+          <div className="flex gap-2">
+            <Input
+              placeholder={locale === "zh" ? "输入 GitHub 用户名" : "GitHub username"}
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && fetchByUsername()}
+            />
+            <Button type="button" onClick={fetchByUsername} disabled={loading || !username.trim()}>
+              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+            </Button>
+          </div>
+        )}
         <div className="relative">
           <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input

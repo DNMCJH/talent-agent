@@ -1,6 +1,7 @@
 "use client";
 
 import { useSession } from "next-auth/react";
+import { useAuth } from "@/lib/auth-context";
 
 export const API_BASE =
   process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8000";
@@ -38,13 +39,14 @@ export async function apiFetch<T>(
 
 export function useApi() {
   const { data: session } = useSession();
-  const token = session?.backendJwt;
+  const { token: emailToken } = useAuth();
+  const token = emailToken || session?.backendJwt;
   return {
     token,
-    get: <T,>(p: string) => apiFetch<T>(p, token),
+    get: <T,>(p: string) => apiFetch<T>(p, token ?? undefined),
     post: <T,>(p: string, body: unknown) =>
-      apiFetch<T>(p, token, { method: "POST", body: JSON.stringify(body) }),
+      apiFetch<T>(p, token ?? undefined, { method: "POST", body: JSON.stringify(body) }),
     del: <T,>(p: string) =>
-      apiFetch<T>(p, token, { method: "DELETE" }),
+      apiFetch<T>(p, token ?? undefined, { method: "DELETE" }),
   };
 }

@@ -4,16 +4,21 @@ import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { Nav } from "@/components/nav";
+import { useAuth } from "@/lib/auth-context";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const { status } = useSession();
+  const { token, loading } = useAuth();
   const router = useRouter();
 
-  useEffect(() => {
-    if (status === "unauthenticated") router.replace("/login");
-  }, [status, router]);
+  const isAuthed = status === "authenticated" || !!token;
+  const isLoading = status === "loading" || loading;
 
-  if (status !== "authenticated") {
+  useEffect(() => {
+    if (!isLoading && !isAuthed) router.replace("/login");
+  }, [isLoading, isAuthed, router]);
+
+  if (!isAuthed) {
     return (
       <div className="min-h-screen flex items-center justify-center text-muted-foreground">
         Loading…

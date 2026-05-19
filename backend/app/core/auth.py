@@ -7,6 +7,9 @@ all subsequent API calls.
 """
 from __future__ import annotations
 
+import hashlib
+import hmac
+import os
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -17,6 +20,19 @@ from app.core.config import settings
 
 JWT_ALG = "HS256"
 JWT_TTL_DAYS = 30
+
+
+def hash_password(password: str) -> str:
+    salt = os.urandom(16)
+    dk = hashlib.pbkdf2_hmac("sha256", password.encode(), salt, 200_000)
+    return salt.hex() + ":" + dk.hex()
+
+
+def verify_password(password: str, stored: str) -> bool:
+    salt_hex, dk_hex = stored.split(":", 1)
+    salt = bytes.fromhex(salt_hex)
+    dk = hashlib.pbkdf2_hmac("sha256", password.encode(), salt, 200_000)
+    return hmac.compare_digest(dk.hex(), dk_hex)
 
 
 class OAuthError(Exception):

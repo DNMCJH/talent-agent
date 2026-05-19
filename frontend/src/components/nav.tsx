@@ -5,10 +5,12 @@ import { usePathname } from "next/navigation";
 import { signOut, useSession } from "next-auth/react";
 import { cn } from "@/lib/utils";
 import { useI18n } from "@/i18n/context";
+import { useAuth } from "@/lib/auth-context";
 
 export function Nav() {
   const pathname = usePathname();
   const { data: session } = useSession();
+  const { token, logout } = useAuth();
   const { t, locale, toggleLocale } = useI18n();
 
   const links = [
@@ -16,6 +18,15 @@ export function Nav() {
     { href: "/match", label: t.nav.match },
     { href: "/interview", label: t.nav.interview },
   ];
+
+  function handleSignOut() {
+    if (token) {
+      logout();
+      window.location.href = "/login";
+    } else {
+      signOut({ callbackUrl: "/login" });
+    }
+  }
 
   return (
     <header className="sticky top-0 z-10 bg-gradient-to-r from-zinc-900 via-zinc-800 to-zinc-900 text-white shadow-lg">
@@ -43,6 +54,7 @@ export function Nav() {
         </div>
         <div className="flex items-center gap-2 sm:gap-3 text-sm shrink-0">
           <button
+            type="button"
             onClick={toggleLocale}
             className="px-2 py-1 rounded text-xs text-zinc-300 hover:text-white hover:bg-white/10 transition-colors"
           >
@@ -52,7 +64,8 @@ export function Nav() {
             <span className="hidden sm:inline text-zinc-400">@{session.githubLogin}</span>
           )}
           <button
-            onClick={() => signOut({ callbackUrl: "/login" })}
+            type="button"
+            onClick={handleSignOut}
             className="px-2 py-1 rounded text-xs sm:text-sm text-zinc-300 hover:text-white hover:bg-white/10 transition-colors"
           >
             {t.nav.signOut}

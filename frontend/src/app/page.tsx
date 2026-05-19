@@ -6,17 +6,19 @@ import { useEffect } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { useI18n } from "@/i18n/context";
+import { useAuth } from "@/lib/auth-context";
 
 export default function LandingPage() {
   const { status } = useSession();
+  const { token } = useAuth();
   const router = useRouter();
   const { t, locale, toggleLocale } = useI18n();
 
   useEffect(() => {
-    if (status === "authenticated") router.replace("/projects");
-  }, [status, router]);
+    if (status === "authenticated" || token) router.replace("/projects");
+  }, [status, token, router]);
 
-  if (status === "authenticated") return null;
+  if (status === "authenticated" || token) return null;
 
   return (
     <div className="min-h-screen flex flex-col">
