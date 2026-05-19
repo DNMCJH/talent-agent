@@ -37,7 +37,12 @@
     "score": "得分",
     "coverage": "覆盖率",
     "mockInterview": "模拟面试",
-    "generateResume": "生成简历"
+    "generateResume": "生成简历",
+    "resumeTitle": "简历要点",
+    "resumeStack": "技术栈",
+    "copy": "复制",
+    "copied": "已复制！",
+    "close": "关闭"
   },
   "interview": {
     "title": "面试",

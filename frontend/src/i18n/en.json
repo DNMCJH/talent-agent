@@ -37,7 +37,12 @@
     "score": "score",
     "coverage": "Coverage",
     "mockInterview": "Mock Interview",
-    "generateResume": "Generate Resume"
+    "generateResume": "Generate Resume",
+    "resumeTitle": "Resume Bullets",
+    "resumeStack": "Tech Stack",
+    "copy": "Copy",
+    "copied": "Copied!",
+    "close": "Close"
   },
   "interview": {
     "title": "Interview",

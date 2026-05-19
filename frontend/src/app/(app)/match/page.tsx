@@ -7,8 +7,15 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { Loader2, MessageSquare, FileText } from "lucide-react";
+import { Loader2, MessageSquare, FileText, Copy, Check } from "lucide-react";
 import { useI18n } from "@/i18n/context";
 
 type Skill = { name: string; level: string };
@@ -31,6 +38,12 @@ type Match = {
   match_reason: string;
 };
 type MatchResult = { jd: ParsedJD; matches: Match[]; overall_best: Match };
+type ResumeData = {
+  project_title: string;
+  stack_line: string;
+  star_bullets: string[];
+  tailored_for_role: string;
+};
 
 export default function MatchPage() {
   const api = useApi();
@@ -40,13 +53,16 @@ export default function MatchPage() {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<MatchResult | null>(null);
   const [resumeLoading, setResumeLoading] = useState<number | null>(null);
+  const [resumeData, setResumeData] = useState<ResumeData | null>(null);
+  const [resumeOpen, setResumeOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   async function onMatch() {
     if (!jd.trim()) return;
     setLoading(true);
     setResult(null);
     try {
-      const r = await api.post<MatchResult>("/match", { raw_jd: jd, top_k: 5 });
+      const r = await api.post<MatchResult>("/match", { raw_jd: jd, top_k: 5 }, 120_000);
       setResult(r);
     } catch (e) {
       const msg = e instanceof ApiError ? e.message : String(e);
@@ -54,6 +70,31 @@ export default function MatchPage() {
     } finally {
       setLoading(false);
     }
+  }
+
+  async function onGenerateResume(projectId: number) {
+    setResumeLoading(projectId);
+    try {
+      const res = await api.post<ResumeData>("/resume", {
+        project_id: projectId,
+        raw_jd: jd,
+      }, 90_000);
+      setResumeData(res);
+      setResumeOpen(true);
+    } catch (e) {
+      const msg = e instanceof ApiError ? e.message : String(e);
+      toast.error(msg);
+    } finally {
+      setResumeLoading(null);
+    }
+  }
+
+  function copyResume() {
+    if (!resumeData) return;
+    const text = `${resumeData.project_title}\n${resumeData.stack_line}\n\n${resumeData.star_bullets.map((b) => `• ${b}`).join("\n")}`;
+    navigator.clipboard.writeText(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   }
 
   return (
@@ -161,24 +202,7 @@ export default function MatchPage() {
                       size="sm"
                       variant="outline"
                       disabled={resumeLoading === m.project_id}
-                      onClick={async () => {
-                        setResumeLoading(m.project_id);
-                        try {
-                          const res = await api.post<{ star_bullets: string[]; stack_line: string }>("/resume", {
-                            project_id: m.project_id,
-                            raw_jd: jd,
-                          });
-                          toast.success(
-                            `Resume bullets:\n${res.star_bullets.join("\n")}`,
-                            { duration: 15000 },
-                          );
-                        } catch (e) {
-                          const msg = e instanceof ApiError ? e.message : String(e);
-                          toast.error(msg);
-                        } finally {
-                          setResumeLoading(null);
-                        }
-                      }}
+                      onClick={() => onGenerateResume(m.project_id!)}
                     >
                       {resumeLoading === m.project_id ? (
                         <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
@@ -194,6 +218,46 @@ export default function MatchPage() {
           ))}
         </div>
       )}
+
+      {/* Resume Dialog */}
+      <Dialog open={resumeOpen} onOpenChange={setResumeOpen}>
+        <DialogContent className="sm:max-w-lg max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{t.match.resumeTitle}</DialogTitle>
+          </DialogHeader>
+          {resumeData && (
+            <div className="space-y-4">
+              <div>
+                <h3 className="font-semibold text-base">{resumeData.project_title}</h3>
+                <p className="text-sm text-muted-foreground mt-1">
+                  {t.match.resumeStack}: {resumeData.stack_line}
+                </p>
+                {resumeData.tailored_for_role && (
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    → {resumeData.tailored_for_role}
+                  </p>
+                )}
+              </div>
+              <ul className="space-y-2">
+                {resumeData.star_bullets.map((bullet, i) => (
+                  <li key={i} className="text-sm pl-4 relative before:content-['•'] before:absolute before:left-0 before:text-muted-foreground">
+                    {bullet}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          <DialogFooter className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={copyResume}>
+              {copied ? <Check className="mr-1.5 h-3.5 w-3.5" /> : <Copy className="mr-1.5 h-3.5 w-3.5" />}
+              {copied ? t.match.copied : t.match.copy}
+            </Button>
+            <Button size="sm" onClick={() => setResumeOpen(false)}>
+              {t.match.close}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

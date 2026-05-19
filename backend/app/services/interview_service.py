@@ -1,8 +1,4 @@
-"""Interview session service: Postgres-backed, multi-tenant.
-
-Borrows the prompts from app.agents.interviewer but takes care of persistence
-via SQLAlchemy ORM rather than the SQLite state_store (which is Streamlit-era).
-"""
+"""Interview session service: Postgres-backed, multi-tenant."""
 
 from __future__ import annotations
 
@@ -15,7 +11,7 @@ from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.agents.parser import parse_jd
+from app.services.jd_parser import parse_jd
 from app.services.interview_prompts import (
     COMPREHENSIVE_SYSTEM,
     CRITIQUE_SYSTEM,

@@ -3,7 +3,7 @@ from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db import get_session
-from app.core.deps import get_current_user
+from app.core.rate_limit import rate_limit_llm
 from app.models.user import User
 from app.services.interview_service import start_interview, take_turn
 
@@ -27,7 +27,7 @@ class TurnIn(BaseModel):
 @router.post("/start")
 async def start(
     body: StartInterviewIn,
-    user: User = Depends(get_current_user),
+    user: User = Depends(rate_limit_llm),
     session: AsyncSession = Depends(get_session),
 ) -> dict:
     ids = body.project_ids or ([body.project_id] if body.project_id else [])
@@ -45,7 +45,7 @@ async def start(
 @router.post("/turn")
 async def turn(
     body: TurnIn,
-    user: User = Depends(get_current_user),
+    user: User = Depends(rate_limit_llm),
     session: AsyncSession = Depends(get_session),
 ) -> dict:
     return await take_turn(

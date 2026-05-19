@@ -8,10 +8,12 @@ Replaces the Streamlit-era orchestrator path for multi-tenant SaaS. Differences:
 
 from __future__ import annotations
 
+import asyncio
+
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.agents.parser import parse_jd
+from app.services.jd_parser import parse_jd
 from app.core.llm import call_llm
 from app.models.project import Project
 from app.schemas.agent_models import Match, MatchResult, ParsedJD, ProjectDoc
@@ -113,7 +115,7 @@ async def match_for_user(
     matches.sort(key=lambda m: (-m.weighted_score, -int(m.project.deployment_signal)))
     top = matches[:top_k]
 
-    for m in top:
+    async def _gen_reason(m: Match) -> None:
         m.match_reason = await call_llm(
             system="Generate a one-sentence explanation of why this project matches the JD. Be specific about which skills overlap.",
             user_message=(
@@ -123,6 +125,9 @@ async def match_for_user(
             ),
             max_tokens=150,
         )
+
+    if top:
+        await asyncio.gather(*[_gen_reason(m) for m in top])
 
     if not top:
         empty = Match(
