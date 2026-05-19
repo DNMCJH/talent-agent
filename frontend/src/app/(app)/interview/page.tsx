@@ -34,6 +34,7 @@ export default function InterviewPage() {
   const [interviewType, setInterviewType] = useState<"targeted" | "comprehensive">("targeted");
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [mode, setMode] = useState("tech");
+  const [language, setLanguage] = useState("zh");
   const [jd, setJd] = useState("");
   const [starting, setStarting] = useState(false);
 
@@ -73,6 +74,7 @@ export default function InterviewPage() {
         interview_type: interviewType,
         mode: interviewType === "targeted" ? mode : "comprehensive",
         raw_jd: jd,
+        language,
       });
       setSessionId(r.session_id);
       setMessages([{ role: "interviewer", content: r.interviewer_message }]);
@@ -205,6 +207,19 @@ export default function InterviewPage() {
                     <option value="behavior">{t.interview.behavior}</option>
                   </select>
                 </div>
+                {/* Interview language */}
+                <div>
+                  <label className="text-sm font-medium block mb-2">{t.interview.language}</label>
+                  <select
+                    aria-label="Interview language"
+                    className="w-full border rounded-md p-2 bg-background text-sm"
+                    value={language}
+                    onChange={(e) => setLanguage(e.target.value)}
+                  >
+                    <option value="zh">{t.interview.langZh}</option>
+                    <option value="en">{t.interview.langEn}</option>
+                  </select>
+                </div>
                 {/* JD required */}
                 <div>
                   <label className="text-sm font-medium block mb-2">{t.interview.jd}</label>
@@ -231,6 +246,19 @@ export default function InterviewPage() {
                   {(!projects || projects.length === 0) && (
                     <p className="text-sm text-destructive mt-1">{t.interview.noProjects}</p>
                   )}
+                </div>
+                {/* Interview language */}
+                <div>
+                  <label className="text-sm font-medium block mb-2">{t.interview.language}</label>
+                  <select
+                    aria-label="Interview language"
+                    className="w-full border rounded-md p-2 bg-background text-sm"
+                    value={language}
+                    onChange={(e) => setLanguage(e.target.value)}
+                  >
+                    <option value="zh">{t.interview.langZh}</option>
+                    <option value="en">{t.interview.langEn}</option>
+                  </select>
                 </div>
                 {/* JD optional */}
                 <div>

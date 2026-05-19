@@ -119,6 +119,7 @@ async def start_interview(
     interview_type: str,
     mode: str,
     raw_jd: str,
+    language: str,
     session: AsyncSession,
 ) -> dict[str, Any]:
     is_comprehensive = interview_type == "comprehensive"
@@ -175,6 +176,13 @@ async def start_interview(
         )
         start_msg = "Start the interview. Ask the candidate to briefly introduce the projects, then drill into technical details."
 
+    lang_instruction = (
+        "\n\nIMPORTANT: Conduct this entire interview in Chinese (Mandarin). All your questions and responses must be in Chinese."
+        if language == "zh"
+        else "\n\nIMPORTANT: Conduct this entire interview in English. All your questions and responses must be in English."
+    )
+    system += lang_instruction
+
     first_question = await call_llm(system=system, user_message=start_msg, max_tokens=300)
 
     project_name = docs[0].name if len(docs) == 1 else f"[{len(docs)} projects]"
@@ -189,6 +197,7 @@ async def start_interview(
     extra_state = {
         "interview_type": interview_type,
         "project_ids": project_ids if not is_comprehensive else [],
+        "language": language,
     }
 
     orm_row = InterviewSessionORM(
@@ -320,6 +329,14 @@ async def take_turn(
             weaknesses=weakness_text,
             focus=state.current_focus or "continue probing",
         )
+
+    lang = extra.get("language", "en")
+    lang_instruction = (
+        "\n\nIMPORTANT: Conduct this entire interview in Chinese (Mandarin). All your questions and responses must be in Chinese."
+        if lang == "zh"
+        else "\n\nIMPORTANT: Conduct this entire interview in English. All your questions and responses must be in English."
+    )
+    system += lang_instruction
 
     messages = [
         {"role": "assistant" if t.role == "interviewer" else "user", "content": t.content}

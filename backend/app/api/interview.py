@@ -16,6 +16,7 @@ class StartInterviewIn(BaseModel):
     raw_jd: str = ""
     mode: str = "tech"  # 'tech' | 'stress' | 'behavior' | 'comprehensive'
     interview_type: str = "targeted"  # 'targeted' | 'comprehensive'
+    language: str = "en"  # 'zh' | 'en'
 
 
 class TurnIn(BaseModel):
@@ -36,6 +37,7 @@ async def start(
         interview_type=body.interview_type,
         mode=body.mode,
         raw_jd=body.raw_jd,
+        language=body.language,
         session=session,
     )
 

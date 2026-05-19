@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signOut, useSession } from "next-auth/react";
-import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useI18n } from "@/i18n/context";
 
@@ -19,20 +18,22 @@ export function Nav() {
   ];
 
   return (
-    <header className="border-b bg-background sticky top-0 z-10">
-      <div className="container max-w-7xl mx-auto flex h-16 items-center justify-between px-6">
-        <div className="flex items-center gap-8">
-          <Link href="/" className="text-lg font-bold tracking-tight">
+    <header className="sticky top-0 z-10 bg-gradient-to-r from-zinc-900 via-zinc-800 to-zinc-900 text-white shadow-lg">
+      <div className="container max-w-7xl mx-auto flex h-14 items-center justify-between px-6">
+        <div className="flex items-center gap-10">
+          <Link href="/" className="text-2xl font-bold tracking-tight">
             Talent Agent
           </Link>
-          <nav className="flex gap-5 text-sm font-medium">
+          <nav className="flex gap-2">
             {links.map((l) => (
               <Link
                 key={l.href}
                 href={l.href}
                 className={cn(
-                  "text-muted-foreground transition-colors hover:text-foreground",
-                  pathname?.startsWith(l.href) && "text-foreground font-medium",
+                  "px-4 py-1.5 rounded-md text-[15px] transition-colors",
+                  pathname?.startsWith(l.href)
+                    ? "bg-white/15 text-white font-semibold"
+                    : "text-zinc-300 hover:text-white hover:bg-white/10",
                 )}
               >
                 {l.label}
@@ -41,20 +42,21 @@ export function Nav() {
           </nav>
         </div>
         <div className="flex items-center gap-3 text-sm">
-          <Button
-            variant="ghost"
-            size="sm"
+          <button
             onClick={toggleLocale}
-            className="text-xs px-2"
+            className="px-2 py-1 rounded text-xs text-zinc-300 hover:text-white hover:bg-white/10 transition-colors"
           >
             {locale === "en" ? "中文" : "EN"}
-          </Button>
+          </button>
           {session?.githubLogin && (
-            <span className="text-muted-foreground">@{session.githubLogin}</span>
+            <span className="text-zinc-400">@{session.githubLogin}</span>
           )}
-          <Button variant="ghost" size="sm" onClick={() => signOut({ callbackUrl: "/login" })}>
+          <button
+            onClick={() => signOut({ callbackUrl: "/login" })}
+            className="px-2 py-1 rounded text-sm text-zinc-300 hover:text-white hover:bg-white/10 transition-colors"
+          >
             {t.nav.signOut}
-          </Button>
+          </button>
         </div>
       </div>
     </header>
