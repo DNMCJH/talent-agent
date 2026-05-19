@@ -52,6 +52,7 @@ class ProjectDoc(BaseModel):
 
 class Match(BaseModel):
     project: ProjectDoc
+    project_id: int | None = None
     coverage: float
     plus_coverage: float = 0.0
     weighted_score: float = 0.0

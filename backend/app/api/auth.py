@@ -20,6 +20,10 @@ class GitHubCodeIn(BaseModel):
     code: str
 
 
+class GitHubTokenIn(BaseModel):
+    access_token: str
+
+
 class TokenOut(BaseModel):
     access_token: str
     token_type: str = "bearer"
@@ -43,6 +47,40 @@ async def login_with_github(
     try:
         gh_token = await exchange_github_code(body.code)
         profile = await fetch_github_user(gh_token)
+    except OAuthError as exc:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
+
+    github_id = int(profile["id"])
+    result = await session.execute(select(User).where(User.github_id == github_id))
+    user = result.scalar_one_or_none()
+
+    if user is None:
+        user = User(
+            github_id=github_id,
+            github_login=profile["login"],
+            email=profile.get("email"),
+            avatar_url=profile.get("avatar_url"),
+        )
+        session.add(user)
+    else:
+        user.github_login = profile["login"]
+        user.email = profile.get("email")
+        user.avatar_url = profile.get("avatar_url")
+    await session.commit()
+    await session.refresh(user)
+
+    return TokenOut(access_token=issue_jwt(user.id), user_id=user.id, github_login=user.github_login)
+
+
+@router.post("/github-token", response_model=TokenOut)
+async def login_with_github_token(
+    body: GitHubTokenIn,
+    session: AsyncSession = Depends(get_session),
+) -> TokenOut:
+    """Frontend (NextAuth) already exchanged code for access_token. Trust it,
+    fetch the GitHub profile, upsert user, return our JWT."""
+    try:
+        profile = await fetch_github_user(body.access_token)
     except OAuthError as exc:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
 

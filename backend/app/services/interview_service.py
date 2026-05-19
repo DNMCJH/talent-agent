@@ -16,7 +16,12 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.parser import parse_jd
-from app.services.interview_prompts import CRITIQUE_SYSTEM, INTERVIEWER_SYSTEM
+from app.services.interview_prompts import (
+    COMPREHENSIVE_SYSTEM,
+    CRITIQUE_SYSTEM,
+    INTERVIEWER_SYSTEM,
+    TARGETED_MULTI_SYSTEM,
+)
 from app.core.llm import call_llm, call_llm_chat
 from app.models.interview import InterviewSession as InterviewSessionORM
 from app.models.interview import Weakness
@@ -74,48 +79,125 @@ async def _bump_weakness(
         row.last_failure_summary = summary[:200]
 
 
+async def _load_projects(
+    user_id: int, project_ids: list[int], session: AsyncSession
+) -> list[ProjectDoc]:
+    docs = []
+    for pid in project_ids:
+        proj = await session.get(Project, pid)
+        if proj is None or proj.user_id != user_id:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, f"project {pid} not found")
+        if not proj.doc:
+            raise HTTPException(
+                status.HTTP_422_UNPROCESSABLE_ENTITY,
+                f"project {pid} has no indexed doc yet — re-import it",
+            )
+        docs.append(ProjectDoc.model_validate(proj.doc))
+    return docs
+
+
+async def _load_all_projects(user_id: int, session: AsyncSession) -> list[ProjectDoc]:
+    rows = await session.execute(
+        select(Project).where(Project.user_id == user_id, Project.doc.isnot(None))
+    )
+    projects = rows.scalars().all()
+    if not projects:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "no projects imported yet")
+    return [ProjectDoc.model_validate(p.doc) for p in projects]
+
+
+def _projects_summary(docs: list[ProjectDoc]) -> str:
+    lines = []
+    for i, d in enumerate(docs, 1):
+        lines.append(f"{i}. {d.name} — stack: {d.stack}")
+    return "\n".join(lines)
+
+
 async def start_interview(
     user_id: int,
-    project_id: int,
+    project_ids: list[int],
+    interview_type: str,
     mode: str,
     raw_jd: str,
     session: AsyncSession,
 ) -> dict[str, Any]:
-    project = await _load_project(user_id, project_id, session)
-    parsed = await parse_jd(raw_jd)
+    is_comprehensive = interview_type == "comprehensive"
+
+    if is_comprehensive:
+        docs = await _load_all_projects(user_id, session)
+    else:
+        if not project_ids:
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, "select at least one project")
+        docs = await _load_projects(user_id, project_ids, session)
+
+    parsed = None
+    company = "a tech company"
+    role = "software engineer"
+    must_skills: list[str] = []
+    if raw_jd.strip():
+        parsed = await parse_jd(raw_jd)
+        company = parsed.company
+        role = parsed.role
+        must_skills = [s.name for s in parsed.must_skills]
 
     weakness_text = await _user_weaknesses_text(user_id, session)
+    summary = _projects_summary(docs)
 
-    system = INTERVIEWER_SYSTEM.format(
-        company=parsed.company,
-        role=parsed.role,
-        project_name=project.name,
-        stack=project.stack,
-        must_skills=[s.name for s in parsed.must_skills],
-        weaknesses=weakness_text,
-        focus="project overview (first question)",
-    )
-    first_question = await call_llm(
-        system=system,
-        user_message="Start the interview. Ask your first question about the candidate's project.",
-        max_tokens=300,
-    )
+    if is_comprehensive:
+        system = COMPREHENSIVE_SYSTEM.format(
+            company=company,
+            role=role,
+            projects_summary=summary,
+            must_skills=must_skills or "none specified",
+            weaknesses=weakness_text,
+            focus="overall technical background (first question)",
+        )
+        start_msg = "Start the comprehensive interview. Ask the candidate to introduce their technical background and project portfolio."
+    elif len(docs) == 1:
+        system = INTERVIEWER_SYSTEM.format(
+            company=company,
+            role=role,
+            project_name=docs[0].name,
+            stack=docs[0].stack,
+            must_skills=must_skills,
+            weaknesses=weakness_text,
+            focus="project overview (first question)",
+        )
+        start_msg = "Start the interview. Ask your first question about the candidate's project."
+    else:
+        system = TARGETED_MULTI_SYSTEM.format(
+            company=company,
+            role=role,
+            projects_summary=summary,
+            must_skills=must_skills,
+            weaknesses=weakness_text,
+            focus="project overview (first question)",
+        )
+        start_msg = "Start the interview. Ask the candidate to briefly introduce the projects, then drill into technical details."
 
+    first_question = await call_llm(system=system, user_message=start_msg, max_tokens=300)
+
+    project_name = docs[0].name if len(docs) == 1 else f"[{len(docs)} projects]"
     state = InterviewState(
         session_id=str(uuid.uuid4()),
-        jd_hash=parsed.jd_hash,
-        project_name=project.name,
+        jd_hash=parsed.jd_hash if parsed else "",
+        project_name=project_name,
         history=[ChatTurn(role="interviewer", content=first_question)],
         turn_count=1,
     )
+
+    extra_state = {
+        "interview_type": interview_type,
+        "project_ids": project_ids if not is_comprehensive else [],
+    }
 
     orm_row = InterviewSessionORM(
         id=state.session_id,
         user_id=user_id,
         mode=mode,
-        jd_hash=parsed.jd_hash,
-        project_name=project.name,
-        state=_state_dump(state, parsed=parsed),
+        jd_hash=parsed.jd_hash if parsed else "",
+        project_name=project_name,
+        state=_state_dump(state, parsed=parsed, extra=extra_state),
     )
     session.add(orm_row)
     await session.commit()
@@ -127,21 +209,24 @@ async def start_interview(
     }
 
 
-def _state_dump(state: InterviewState, *, parsed: ParsedJD | None = None) -> dict[str, Any]:
-    """Combine the InterviewState pydantic dump with the parsed JD so /turn can rehydrate
-    without re-running parse_jd on every turn."""
+def _state_dump(
+    state: InterviewState, *, parsed: ParsedJD | None = None, extra: dict[str, Any] | None = None
+) -> dict[str, Any]:
     payload = state.model_dump()
     if parsed is not None:
         payload["_parsed_jd"] = parsed.model_dump()
+    if extra:
+        payload["_extra"] = extra
     return payload
 
 
-def _load_state(row: InterviewSessionORM) -> tuple[InterviewState, ParsedJD | None]:
+def _load_state(row: InterviewSessionORM) -> tuple[InterviewState, ParsedJD | None, dict[str, Any]]:
     raw = dict(row.state)
     parsed_data = raw.pop("_parsed_jd", None)
+    extra = raw.pop("_extra", {})
     state = InterviewState.model_validate(raw)
     parsed = ParsedJD.model_validate(parsed_data) if parsed_data else None
-    return state, parsed
+    return state, parsed, extra
 
 
 async def take_turn(
@@ -154,26 +239,29 @@ async def take_turn(
     if row is None or row.user_id != user_id:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "interview session not found")
 
-    state, parsed = _load_state(row)
-    if parsed is None:
-        raise HTTPException(
-            status.HTTP_409_CONFLICT,
-            "session is missing parsed JD — start a new interview",
-        )
+    state, parsed, extra = _load_state(row)
+    interview_type = extra.get("interview_type", "targeted")
+    stored_project_ids = extra.get("project_ids", [])
 
-    # Find the project doc again (name match is stable enough; doc is cached in ORM row otherwise)
-    proj_rows = await session.execute(
-        select(Project).where(
-            Project.user_id == user_id, Project.name == state.project_name
-        ).limit(1)
-    )
-    proj = proj_rows.scalar_one_or_none()
-    if proj is None or not proj.doc:
-        raise HTTPException(
-            status.HTTP_409_CONFLICT,
-            "the project this interview was about has been deleted",
+    is_comprehensive = interview_type == "comprehensive"
+
+    if is_comprehensive:
+        docs = await _load_all_projects(user_id, session)
+    elif stored_project_ids:
+        docs = await _load_projects(user_id, stored_project_ids, session)
+    else:
+        proj_rows = await session.execute(
+            select(Project).where(
+                Project.user_id == user_id, Project.name == state.project_name
+            ).limit(1)
         )
-    project = ProjectDoc.model_validate(proj.doc)
+        proj = proj_rows.scalar_one_or_none()
+        if proj is None or not proj.doc:
+            raise HTTPException(
+                status.HTTP_409_CONFLICT,
+                "the project this interview was about has been deleted",
+            )
+        docs = [ProjectDoc.model_validate(proj.doc)]
 
     state.history.append(ChatTurn(role="candidate", content=candidate_message))
 
@@ -198,16 +286,41 @@ async def take_turn(
 
     state.current_focus = critique.get("next_focus")
 
+    company = parsed.company if parsed else "a tech company"
+    role = parsed.role if parsed else "software engineer"
+    must_skills = [s.name for s in parsed.must_skills] if parsed else []
     weakness_text = await _user_weaknesses_text(user_id, session)
-    system = INTERVIEWER_SYSTEM.format(
-        company=parsed.company,
-        role=parsed.role,
-        project_name=project.name,
-        stack=project.stack,
-        must_skills=[s.name for s in parsed.must_skills],
-        weaknesses=weakness_text,
-        focus=state.current_focus or "continue probing",
-    )
+    summary = _projects_summary(docs)
+
+    if is_comprehensive:
+        system = COMPREHENSIVE_SYSTEM.format(
+            company=company,
+            role=role,
+            projects_summary=summary,
+            must_skills=must_skills or "none specified",
+            weaknesses=weakness_text,
+            focus=state.current_focus or "continue probing",
+        )
+    elif len(docs) == 1:
+        system = INTERVIEWER_SYSTEM.format(
+            company=company,
+            role=role,
+            project_name=docs[0].name,
+            stack=docs[0].stack,
+            must_skills=must_skills,
+            weaknesses=weakness_text,
+            focus=state.current_focus or "continue probing",
+        )
+    else:
+        system = TARGETED_MULTI_SYSTEM.format(
+            company=company,
+            role=role,
+            projects_summary=summary,
+            must_skills=must_skills,
+            weaknesses=weakness_text,
+            focus=state.current_focus or "continue probing",
+        )
+
     messages = [
         {"role": "assistant" if t.role == "interviewer" else "user", "content": t.content}
         for t in state.history
@@ -217,7 +330,7 @@ async def take_turn(
     state.history.append(ChatTurn(role="interviewer", content=next_question))
     state.turn_count += 1
 
-    row.state = _state_dump(state, parsed=parsed)
+    row.state = _state_dump(state, parsed=parsed, extra=extra)
     await session.commit()
 
     return {

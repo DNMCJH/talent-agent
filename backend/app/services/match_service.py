@@ -85,7 +85,14 @@ async def match_for_user(
             continue
         project = ProjectDoc.model_validate(proj_row.doc)
         must_cov, plus_cov, weighted, matched, missing, matched_plus = _score(project, parsed)
-        if matched or matched_plus:
+        # Include vector similarity from Qdrant as a signal
+        vector_score = next(
+            (p.score for p in points if p.payload and p.payload.get("project_id") == pid),
+            0.0,
+        )
+        # Blend: 50% skill coverage + 30% plus coverage + 20% vector similarity
+        blended = 0.5 * must_cov + 0.3 * plus_cov + 0.2 * (vector_score or 0.0)
+        if matched or matched_plus or (vector_score and vector_score > 0.5):
             bonus = [
                 s for s in project.stack
                 if _normalize_skill(s) not in
@@ -93,9 +100,10 @@ async def match_for_user(
             ]
             matches.append(Match(
                 project=project,
+                project_id=pid,
                 coverage=must_cov,
                 plus_coverage=plus_cov,
-                weighted_score=weighted,
+                weighted_score=round(blended, 3),
                 matched_skills=matched,
                 missing_skills=missing,
                 matched_plus_skills=matched_plus,

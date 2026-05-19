@@ -11,9 +11,11 @@ router = APIRouter()
 
 
 class StartInterviewIn(BaseModel):
-    project_id: int
-    raw_jd: str
-    mode: str = "tech"  # 'tech' | 'stress' | 'behavior'
+    project_ids: list[int] = []
+    project_id: int | None = None
+    raw_jd: str = ""
+    mode: str = "tech"  # 'tech' | 'stress' | 'behavior' | 'comprehensive'
+    interview_type: str = "targeted"  # 'targeted' | 'comprehensive'
 
 
 class TurnIn(BaseModel):
@@ -27,9 +29,11 @@ async def start(
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> dict:
+    ids = body.project_ids or ([body.project_id] if body.project_id else [])
     return await start_interview(
         user_id=user.id,
-        project_id=body.project_id,
+        project_ids=ids,
+        interview_type=body.interview_type,
         mode=body.mode,
         raw_jd=body.raw_jd,
         session=session,
