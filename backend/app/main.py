@@ -3,14 +3,15 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import auth, interview, match, projects, quiz, resume, resume_upload
+from app.api import auth, interview, match, projects, quiz, resume, resume_export, resume_upload
 from app.core.config import settings
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    import asyncio
     from app.services.embedder import embed_text
-    embed_text("warmup")
+    await asyncio.to_thread(embed_text, "warmup")
     yield
 
 
@@ -29,6 +30,7 @@ app.include_router(projects.router, prefix="/projects", tags=["projects"])
 app.include_router(match.router, prefix="/match", tags=["match"])
 app.include_router(interview.router, prefix="/interview", tags=["interview"])
 app.include_router(resume.router, prefix="/resume", tags=["resume"])
+app.include_router(resume_export.router, prefix="/resume", tags=["resume-export"])
 app.include_router(resume_upload.router, prefix="/resume-upload", tags=["resume-upload"])
 app.include_router(quiz.router, prefix="/quiz", tags=["quiz"])
 

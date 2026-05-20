@@ -36,12 +36,22 @@ _IGNORE_DIRS = {
 }
 
 
+_MAX_UNCOMPRESSED_SIZE = 200 * 1024 * 1024  # 200 MB
+_MAX_FILE_COUNT = 5000
+
+
 async def parse_uploaded_project(content: bytes, filename: str) -> ProjectDoc:
     if not zipfile.is_zipfile(io.BytesIO(content)):
         raise ValueError("Uploaded file is not a valid zip archive")
 
     zf = zipfile.ZipFile(io.BytesIO(content))
     names = zf.namelist()
+
+    total_uncompressed = sum(info.file_size for info in zf.infolist())
+    if total_uncompressed > _MAX_UNCOMPRESSED_SIZE:
+        raise ValueError(f"Archive too large when extracted ({total_uncompressed // 1024 // 1024}MB > 200MB limit)")
+    if len(names) > _MAX_FILE_COUNT:
+        raise ValueError(f"Archive contains too many files ({len(names)} > {_MAX_FILE_COUNT} limit)")
 
     lang_bytes: Counter[str] = Counter()
     signals: dict[str, bool] = {}

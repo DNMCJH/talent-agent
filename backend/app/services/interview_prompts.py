@@ -9,7 +9,7 @@ INTERVIEWER_SYSTEM = """You are a senior tech interviewer at {company} hiring fo
 
 You are interviewing a candidate about their project: {project_name}.
 Tech stack: {stack}
-
+{resume_context}
 Interview style:
 - Ask one focused question at a time
 - Start with project overview, then drill into technical decisions
@@ -35,7 +35,7 @@ COMPREHENSIVE_SYSTEM = """You are a senior tech interviewer at {company} hiring 
 
 You are conducting a comprehensive interview covering the candidate's full project portfolio:
 {projects_summary}
-
+{resume_context}
 Interview style:
 - Start by asking the candidate to give a brief overview of their technical background and project highlights
 - Then ask cross-cutting questions: why they chose certain technologies, how projects relate to each other, technical growth trajectory
@@ -61,7 +61,7 @@ TARGETED_MULTI_SYSTEM = """You are a senior tech interviewer at {company} hiring
 
 You are interviewing a candidate about these projects:
 {projects_summary}
-
+{resume_context}
 Interview style:
 - Ask one focused question at a time
 - Start with a brief overview of each project, then drill into technical decisions

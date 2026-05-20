@@ -125,3 +125,24 @@ def decode_password_reset_token(token: str) -> int:
     if payload.get("purpose") != "password_reset":
         raise jwt.InvalidTokenError("wrong token purpose")
     return int(payload["sub"])
+
+
+# SSE stream tokens — short-lived so they can safely appear in query params / logs.
+SSE_TOKEN_TTL_MINUTES = 5
+
+
+def issue_stream_token(user_id: int) -> str:
+    payload = {
+        "sub": str(user_id),
+        "purpose": "stream",
+        "exp": datetime.now(UTC) + timedelta(minutes=SSE_TOKEN_TTL_MINUTES),
+        "iat": datetime.now(UTC),
+    }
+    return jwt.encode(payload, settings.api_secret, algorithm=JWT_ALG)
+
+
+def decode_stream_token(token: str) -> int:
+    payload = jwt.decode(token, settings.api_secret, algorithms=[JWT_ALG])
+    if payload.get("purpose") != "stream":
+        raise jwt.InvalidTokenError("wrong token purpose — expected stream token")
+    return int(payload["sub"])

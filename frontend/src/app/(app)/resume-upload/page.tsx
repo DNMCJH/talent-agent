@@ -128,9 +128,34 @@ export default function ResumeUploadPage() {
     }
   }
 
+  function buildResumeContext(): string {
+    if (!result) return "";
+    const p = result.parsed;
+    const parts: string[] = [];
+    if (p.name) parts.push(`Name: ${p.name}`);
+    if (p.education.length > 0) {
+      const eduStr = p.education
+        .map((e) => [e.school, e.degree, e.major, e.period].filter(Boolean).join(", "))
+        .join("; ");
+      parts.push(`Education: ${eduStr}`);
+    }
+    if (p.experience.length > 0) {
+      const expStr = p.experience
+        .map((e) => [e.role, e.company, e.period].filter(Boolean).join(", "))
+        .join("; ");
+      parts.push(`Experience: ${expStr}`);
+    }
+    if (p.skills.length > 0) {
+      parts.push(`Skills: ${p.skills.join(", ")}`);
+    }
+    return parts.join("\n");
+  }
+
   function onStartInterview() {
     if (importedIds.length === 0) return;
     const ids = importedIds.join(",");
+    const rc = buildResumeContext();
+    sessionStorage.setItem("talent-agent.resume_context", rc);
     router.push(`/interview?project_ids=${ids}`);
   }
 

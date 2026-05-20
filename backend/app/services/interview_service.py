@@ -13,6 +13,7 @@ from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.db import _get_sessionmaker
 from app.services.jd_parser import parse_jd
 from app.services.interview_prompts import (
     COMPREHENSIVE_SYSTEM,
@@ -22,7 +23,7 @@ from app.services.interview_prompts import (
 )
 from app.core.llm import call_llm, call_llm_chat, stream_llm, stream_llm_chat
 from app.models.interview import InterviewSession as InterviewSessionORM
-from app.models.interview import Weakness
+from app.models.interview import InterviewTurn, Weakness
 from app.models.project import Project
 from app.schemas.agent_models import (
     ChatTurn,
@@ -119,6 +120,7 @@ async def start_interview(
     raw_jd: str,
     language: str,
     session: AsyncSession,
+    resume_context: str = "",
 ) -> dict[str, Any]:
     is_comprehensive = interview_type == "comprehensive"
 
@@ -142,6 +144,10 @@ async def start_interview(
     weakness_text = await _user_weaknesses_text(user_id, session)
     summary = _projects_summary(docs)
 
+    rc_block = ""
+    if resume_context:
+        rc_block = f"\nCandidate background (from resume):\n{resume_context}\n"
+
     if is_comprehensive:
         system = COMPREHENSIVE_SYSTEM.format(
             company=company,
@@ -150,6 +156,7 @@ async def start_interview(
             must_skills=must_skills or "none specified",
             weaknesses=weakness_text,
             focus="overall technical background (first question)",
+            resume_context=rc_block,
         )
         start_msg = "Start the comprehensive interview. Ask the candidate to introduce their technical background and project portfolio."
     elif len(docs) == 1:
@@ -161,6 +168,7 @@ async def start_interview(
             must_skills=must_skills,
             weaknesses=weakness_text,
             focus="project overview (first question)",
+            resume_context=rc_block,
         )
         start_msg = "Start the interview. Ask your first question about the candidate's project."
     else:
@@ -171,6 +179,7 @@ async def start_interview(
             must_skills=must_skills,
             weaknesses=weakness_text,
             focus="project overview (first question)",
+            resume_context=rc_block,
         )
         start_msg = "Start the interview. Ask the candidate to briefly introduce the projects, then drill into technical details."
 
@@ -196,6 +205,7 @@ async def start_interview(
         "interview_type": interview_type,
         "project_ids": project_ids if not is_comprehensive else [],
         "language": language,
+        "resume_context": resume_context,
     }
 
     orm_row = InterviewSessionORM(
@@ -207,6 +217,7 @@ async def start_interview(
         state=_state_dump(state, parsed=parsed, extra=extra_state),
     )
     session.add(orm_row)
+    await _save_turn(session, state.session_id, 0, "interviewer", first_question)
     await session.commit()
 
     return {
@@ -234,6 +245,23 @@ def _load_state(row: InterviewSessionORM) -> tuple[InterviewState, ParsedJD | No
     state = InterviewState.model_validate(raw)
     parsed = ParsedJD.model_validate(parsed_data) if parsed_data else None
     return state, parsed, extra
+
+
+async def _save_turn(
+    session: AsyncSession,
+    session_id: str,
+    idx: int,
+    role: str,
+    content: str,
+    critique: dict[str, Any] | None = None,
+) -> None:
+    session.add(InterviewTurn(
+        session_id=session_id,
+        idx=idx,
+        role=role,
+        content=content,
+        critique=critique,
+    ))
 
 
 async def take_turn(
@@ -299,6 +327,11 @@ async def take_turn(
     weakness_text = await _user_weaknesses_text(user_id, session)
     summary = _projects_summary(docs)
 
+    rc_block = ""
+    rc = extra.get("resume_context", "")
+    if rc:
+        rc_block = f"\nCandidate background (from resume):\n{rc}\n"
+
     if is_comprehensive:
         system = COMPREHENSIVE_SYSTEM.format(
             company=company,
@@ -307,6 +340,7 @@ async def take_turn(
             must_skills=must_skills or "none specified",
             weaknesses=weakness_text,
             focus=state.current_focus or "continue probing",
+            resume_context=rc_block,
         )
     elif len(docs) == 1:
         system = INTERVIEWER_SYSTEM.format(
@@ -317,6 +351,7 @@ async def take_turn(
             must_skills=must_skills,
             weaknesses=weakness_text,
             focus=state.current_focus or "continue probing",
+            resume_context=rc_block,
         )
     else:
         system = TARGETED_MULTI_SYSTEM.format(
@@ -326,6 +361,7 @@ async def take_turn(
             must_skills=must_skills,
             weaknesses=weakness_text,
             focus=state.current_focus or "continue probing",
+            resume_context=rc_block,
         )
 
     lang = extra.get("language", "en")
@@ -344,6 +380,10 @@ async def take_turn(
 
     state.history.append(ChatTurn(role="interviewer", content=next_question))
     state.turn_count += 1
+
+    turn_base = len(state.history) - 2
+    await _save_turn(session, session_id, turn_base, "candidate", candidate_message, critique)
+    await _save_turn(session, session_id, turn_base + 1, "interviewer", next_question)
 
     row.state = _state_dump(state, parsed=parsed, extra=extra)
     await session.commit()
@@ -376,11 +416,16 @@ def _build_interviewer_prompt(
     weakness_text: str,
     focus: str,
     language: str,
+    resume_context: str = "",
 ) -> str:
     company = parsed.company if parsed else "a tech company"
     role = parsed.role if parsed else "software engineer"
     must_skills = [s.name for s in parsed.must_skills] if parsed else []
     summary = _projects_summary(docs)
+
+    rc_block = ""
+    if resume_context:
+        rc_block = f"\nCandidate background (from resume):\n{resume_context}\n"
 
     if is_comprehensive:
         system = COMPREHENSIVE_SYSTEM.format(
@@ -390,6 +435,7 @@ def _build_interviewer_prompt(
             must_skills=must_skills or "none specified",
             weaknesses=weakness_text,
             focus=focus,
+            resume_context=rc_block,
         )
     elif len(docs) == 1:
         system = INTERVIEWER_SYSTEM.format(
@@ -400,6 +446,7 @@ def _build_interviewer_prompt(
             must_skills=must_skills,
             weaknesses=weakness_text,
             focus=focus,
+            resume_context=rc_block,
         )
     else:
         system = TARGETED_MULTI_SYSTEM.format(
@@ -409,6 +456,7 @@ def _build_interviewer_prompt(
             must_skills=must_skills,
             weaknesses=weakness_text,
             focus=focus,
+            resume_context=rc_block,
         )
 
     lang_instruction = (
@@ -427,6 +475,7 @@ async def start_interview_stream(
     raw_jd: str,
     language: str,
     session: AsyncSession,
+    resume_context: str = "",
 ) -> AsyncIterator[dict[str, Any]]:
     """Streaming version of start_interview. Yields delta + final done event."""
     is_comprehensive = interview_type == "comprehensive"
@@ -454,6 +503,7 @@ async def start_interview_stream(
             else "project overview (first question)"
         ),
         language=language,
+        resume_context=resume_context,
     )
     if is_comprehensive:
         start_msg = "Start the comprehensive interview. Ask the candidate to introduce their technical background and project portfolio."
@@ -480,6 +530,7 @@ async def start_interview_stream(
         "interview_type": interview_type,
         "project_ids": project_ids if not is_comprehensive else [],
         "language": language,
+        "resume_context": resume_context,
     }
     orm_row = InterviewSessionORM(
         id=state.session_id,
@@ -490,6 +541,7 @@ async def start_interview_stream(
         state=_state_dump(state, parsed=parsed, extra=extra_state),
     )
     session.add(orm_row)
+    await _save_turn(session, state.session_id, 0, "interviewer", first_question)
     await session.commit()
 
     yield {
@@ -503,9 +555,8 @@ async def _run_critique(
     user_id: int,
     last_question: str,
     candidate_message: str,
-    session: AsyncSession,
 ) -> dict[str, Any]:
-    """Run critique LLM call and persist weakness updates. Returns parsed critique dict."""
+    """Run critique LLM call and persist weakness updates in its own session."""
     critique_raw = await call_llm(
         system=CRITIQUE_SYSTEM,
         user_message=f"Question: {last_question}\nAnswer: {candidate_message}",
@@ -516,13 +567,16 @@ async def _run_critique(
     except json.JSONDecodeError:
         critique = {"score": 5, "weakness_topics": [], "severity": None, "next_focus": None, "feedback": {"summary": "", "suggestions": [], "corrections": []}}
 
-    for topic in critique.get("weakness_topics") or []:
-        await _bump_weakness(
-            user_id, topic,
-            severity=critique.get("severity", "轻微"),
-            summary=candidate_message,
-            session=session,
-        )
+    if critique.get("weakness_topics"):
+        async with _get_sessionmaker()() as s:
+            for topic in critique["weakness_topics"]:
+                await _bump_weakness(
+                    user_id, topic,
+                    severity=critique.get("severity", "轻微"),
+                    summary=candidate_message,
+                    session=s,
+                )
+            await s.commit()
     return critique
 
 
@@ -566,10 +620,9 @@ async def take_turn_stream(
     last_question = state.history[-2].content if len(state.history) >= 2 else ""
 
     # Fire critique in the background — it does not block next-question generation.
-    # Use a fresh session for the critique writer because the main session is being
-    # used to stream and we do not want concurrent writes on one connection.
+    # Uses its own session internally to avoid concurrent writes on one connection.
     critique_task = asyncio.create_task(
-        _run_critique(user_id, last_question, candidate_message, session)
+        _run_critique(user_id, last_question, candidate_message)
     )
 
     # Use focus from PREVIOUS turn (already persisted in state.current_focus).
@@ -583,6 +636,7 @@ async def take_turn_stream(
         weakness_text=weakness_text,
         focus=state.current_focus or "continue probing",
         language=lang,
+        resume_context=extra.get("resume_context", ""),
     )
 
     messages = [
@@ -603,6 +657,10 @@ async def take_turn_stream(
     # and surface it to the client.
     critique = await critique_task
     state.current_focus = critique.get("next_focus")
+
+    turn_base = len(state.history) - 2
+    await _save_turn(session, session_id, turn_base, "candidate", candidate_message, critique)
+    await _save_turn(session, session_id, turn_base + 1, "interviewer", next_question)
 
     row.state = _state_dump(state, parsed=parsed, extra=extra)
     await session.commit()

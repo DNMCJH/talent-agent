@@ -24,6 +24,7 @@ class StartInterviewIn(BaseModel):
     mode: str = "tech"  # 'tech' | 'stress' | 'behavior' | 'comprehensive'
     interview_type: str = "targeted"  # 'targeted' | 'comprehensive'
     language: str = "en"  # 'zh' | 'en'
+    resume_context: str = ""  # optional: candidate background from parsed resume
 
 
 class TurnIn(BaseModel):
@@ -45,6 +46,7 @@ async def start(
         mode=body.mode,
         raw_jd=body.raw_jd,
         language=body.language,
+        resume_context=body.resume_context,
         session=session,
     )
 
@@ -76,6 +78,7 @@ async def start_stream(
     mode: str = Query(default="tech"),
     interview_type: str = Query(default="targeted"),
     language: str = Query(default="en"),
+    resume_context: str = Query(default=""),
     user: User = Depends(rate_limit_llm_sse),
     session: AsyncSession = Depends(get_session),
 ) -> StreamingResponse:
@@ -88,6 +91,7 @@ async def start_stream(
             mode=mode,
             raw_jd=raw_jd,
             language=language,
+            resume_context=resume_context,
             session=session,
         )),
         media_type="text/event-stream",

@@ -11,7 +11,7 @@ from app.models.project import Project
 from app.models.user import User
 from app.schemas.agent_models import ProjectDoc
 from app.services import vector_store
-from app.services.embedder import embed_text, project_doc_to_text
+from app.services.embedder import embed_text_async, embed_texts_async, project_doc_to_text
 from app.services.github_indexer import parse_github_url, scan_github_repo
 from app.services.local_project_parser import parse_uploaded_project
 
@@ -92,7 +92,7 @@ async def import_github(
 
     try:
         text = project_doc_to_text(doc.name, doc.readme, doc.stack, doc.topics)
-        vector = embed_text(text)
+        vector = await embed_text_async(text)
         await vector_store.ensure_projects_collection(vector_size=len(vector))
         point_id = await vector_store.upsert_project(
             user_id=user.id,
@@ -193,7 +193,7 @@ async def _persist_project(
 
     try:
         text = project_doc_to_text(doc.name, doc.readme, doc.stack, doc.topics)
-        vector = embed_text(text)
+        vector = await embed_text_async(text)
         await vector_store.ensure_projects_collection(vector_size=len(vector))
         point_id = await vector_store.upsert_project(
             user_id=user.id,
@@ -323,7 +323,10 @@ async def import_from_resume(
         ).all()
     }
 
-    for item in body.projects:
+    valid_docs: list[ProjectDoc] = []
+    valid_items_idx: list[int] = []
+
+    for i, item in enumerate(body.projects):
         raw_name = (item.name or "").strip()
         if not raw_name:
             skipped.append({"name": "(unnamed)", "reason": "missing name"})
@@ -341,14 +344,40 @@ async def import_from_resume(
             stack=stack,
             topics=stack[:5],
         )
-        try:
-            project = await _persist_project(
-                user=user, session=session, doc=doc, source="manual"
-            )
-            existing_names.add(raw_name)
-            imported.append(ProjectOut.model_validate(project))
-        except HTTPException as e:
-            skipped.append({"name": raw_name, "reason": e.detail if isinstance(e.detail, str) else "error"})
+        valid_docs.append(doc)
+        valid_items_idx.append(i)
+        existing_names.add(raw_name)
 
+    if not valid_docs:
+        return ImportFromResumeOut(imported=imported, skipped=skipped)
+
+    texts = [project_doc_to_text(d.name, d.readme, d.stack, d.topics) for d in valid_docs]
+    vectors = await embed_texts_async(texts)
+    await vector_store.ensure_projects_collection(vector_size=len(vectors[0]))
+
+    for doc, vector in zip(valid_docs, vectors):
+        project = Project(
+            user_id=user.id,
+            name=doc.name,
+            source="manual",
+            github_url=None,
+            analysis_depth="medium",
+            doc=doc.model_dump(),
+        )
+        session.add(project)
+        await session.flush()
+        try:
+            point_id = await vector_store.upsert_project(
+                user_id=user.id,
+                project_id=project.id,
+                vector=vector,
+                payload={"name": doc.name, "stack": doc.stack, "topics": doc.topics},
+            )
+            project.qdrant_point_id = point_id
+            imported.append(ProjectOut.model_validate(project))
+        except Exception:
+            skipped.append({"name": doc.name, "reason": "embed/upsert failed"})
+
+    await session.commit()
     return ImportFromResumeOut(imported=imported, skipped=skipped)
 

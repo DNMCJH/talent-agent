@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from functools import lru_cache
 
 from app.core.config import settings
@@ -24,6 +25,16 @@ def embed_texts(texts: list[str]) -> list[list[float]]:
         return []
     arr = get_embedder().encode(texts, normalize_embeddings=True, batch_size=32)
     return [v.tolist() for v in arr]
+
+
+async def embed_text_async(text: str) -> list[float]:
+    return await asyncio.to_thread(embed_text, text)
+
+
+async def embed_texts_async(texts: list[str]) -> list[list[float]]:
+    if not texts:
+        return []
+    return await asyncio.to_thread(embed_texts, texts)
 
 
 def project_doc_to_text(name: str, readme: str, stack: list[str], topics: list[str]) -> str:

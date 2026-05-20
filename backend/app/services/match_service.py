@@ -18,7 +18,7 @@ from app.core.llm import call_llm
 from app.models.project import Project
 from app.schemas.agent_models import Match, MatchResult, ParsedJD, ProjectDoc
 from app.services import vector_store
-from app.services.embedder import embed_text, embed_texts
+from app.services.embedder import embed_text_async, embed_texts_async
 
 
 def _normalize_skill(name: str) -> str:
@@ -95,7 +95,7 @@ async def match_for_user(
     parsed = await parse_jd(raw_jd)
 
     query_text = " ".join(parsed.keywords_for_search)
-    query_vector = embed_text(query_text)
+    query_vector = await embed_text_async(query_text)
 
     points = await vector_store.search_projects(
         user_id=user_id, query_vector=query_vector, limit=20
@@ -123,7 +123,7 @@ async def match_for_user(
     must_names = [s.name for s in parsed.must_skills]
     plus_names = [s.name for s in parsed.plus_skills]
     all_skill_names = list(dict.fromkeys(must_names + plus_names))  # dedupe, preserve order
-    skill_vec_list = embed_texts(all_skill_names) if all_skill_names else []
+    skill_vec_list = await embed_texts_async(all_skill_names) if all_skill_names else []
     skill_vecs = dict(zip(all_skill_names, skill_vec_list))
 
     candidate_docs: dict[int, ProjectDoc] = {}
@@ -139,7 +139,7 @@ async def match_for_user(
         f"{d.name}. Stack: {', '.join(d.stack)}. Topics: {', '.join(d.topics)}. {d.readme[:500]}"
         for d in candidate_docs.values()
     ]
-    project_vec_list = embed_texts(project_texts) if project_texts else []
+    project_vec_list = await embed_texts_async(project_texts) if project_texts else []
     project_vecs = dict(zip(candidate_docs.keys(), project_vec_list))
 
     matches: list[Match] = []

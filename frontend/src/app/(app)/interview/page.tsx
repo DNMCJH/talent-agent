@@ -42,6 +42,7 @@ export default function InterviewPage() {
   const [mode, setMode] = useState("tech");
   const [language, setLanguage] = useState("zh");
   const [jd, setJd] = useState("");
+  const [resumeContext, setResumeContext] = useState("");
   const [starting, setStarting] = useState(false);
 
   useEffect(() => {
@@ -65,6 +66,12 @@ export default function InterviewPage() {
         const parsed = JSON.parse(raw) as { jd?: string };
         if (parsed.jd) setJd(parsed.jd);
       }
+    } catch {
+      // ignore
+    }
+    try {
+      const rc = sessionStorage.getItem("talent-agent.resume_context");
+      if (rc) setResumeContext(rc);
     } catch {
       // ignore
     }
@@ -118,6 +125,7 @@ export default function InterviewPage() {
         mode: interviewType === "targeted" ? mode : "comprehensive",
         interview_type: interviewType,
         language,
+        resume_context: resumeContext,
       },
       {
         onEvent: (e) => {

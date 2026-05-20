@@ -8,7 +8,7 @@ class Settings(BaseSettings):
     llm_model: str = "deepseek-chat"
 
     # Embedding
-    embed_model: str = "BAAI/bge-m3"
+    embed_model: str = "BAAI/bge-small-zh-v1.5"
     embed_device: str = "cpu"
 
     # Qdrant (multi-tenant via payload filter on user_id)
@@ -42,3 +42,10 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
+
+if settings.api_secret == "dev-secret-change-me":
+    import warnings
+    warnings.warn(
+        "API_SECRET is still the default placeholder — set it in .env before deploying!",
+        stacklevel=1,
+    )

@@ -15,6 +15,7 @@ from app.core.auth import (
     issue_email_verify_token,
     issue_jwt,
     issue_password_reset_token,
+    issue_stream_token,
     verify_password,
 )
 from app.core.config import settings
@@ -271,3 +272,12 @@ async def reset_password(
         user.email_verified = True
     await session.commit()
     return TokenOut(access_token=issue_jwt(user.id), user_id=user.id, github_login=user.github_login)
+
+
+@router.post("/stream-token")
+async def get_stream_token(
+    user: User = Depends(get_current_user),
+) -> dict[str, str]:
+    """Issue a short-lived token for SSE connections (5 min TTL).
+    Frontend should call this before opening an EventSource."""
+    return {"token": issue_stream_token(user.id)}

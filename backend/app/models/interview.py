@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import JSON, DateTime, ForeignKey, String, func
+from sqlalchemy import JSON, DateTime, ForeignKey, Integer, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.db import Base
@@ -16,13 +16,28 @@ class InterviewSession(Base):
     jd_hash: Mapped[str] = mapped_column(String(64), index=True)
     project_name: Mapped[str] = mapped_column(String(200))
 
-    # Full InterviewSession schema (schemas.agent_models.InterviewSession.model_dump())
+    # Metadata only (parsed JD, extra config, current_focus). History moved to interview_turns.
     state: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
+
+
+class InterviewTurn(Base):
+    """Individual turn in an interview session. Replaces unbounded JSON history."""
+    __tablename__ = "interview_turns"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    session_id: Mapped[str] = mapped_column(
+        String(64), ForeignKey("interview_sessions.id", ondelete="CASCADE"), index=True
+    )
+    idx: Mapped[int] = mapped_column(Integer)
+    role: Mapped[str] = mapped_column(String(20))  # 'interviewer' | 'candidate'
+    content: Mapped[str] = mapped_column(Text)
+    critique: Mapped[dict[str, Any] | None] = mapped_column(JSON, default=None)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
 class Weakness(Base):
