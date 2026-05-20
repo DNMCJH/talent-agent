@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import useSWR from "swr";
+import Markdown from "react-markdown";
 import { useApi } from "@/lib/api";
 import { openSSE } from "@/lib/sse";
 import { Button } from "@/components/ui/button";
@@ -14,7 +15,17 @@ import { Loader2, Send } from "lucide-react";
 import { useI18n } from "@/i18n/context";
 
 type Project = { id: number; name: string };
-type Critique = { score?: number; weakness_topics?: string[]; severity?: string; next_focus?: string | null };
+type Critique = {
+  score?: number;
+  weakness_topics?: string[];
+  severity?: string;
+  next_focus?: string | null;
+  feedback?: {
+    summary?: string;
+    suggestions?: string[];
+    corrections?: string[];
+  };
+};
 type ChatMsg = { role: "interviewer" | "candidate"; content: string; critique?: Critique };
 
 export default function InterviewPage() {
@@ -388,18 +399,54 @@ export default function InterviewPage() {
                     <Loader2 className="h-3 w-3 animate-spin" />
                     {language === "zh" ? "AI 正在思考…" : "AI is thinking…"}
                   </p>
+                ) : m.role === "interviewer" ? (
+                  <div className="text-sm prose prose-sm dark:prose-invert max-w-none prose-p:my-1 prose-ul:my-1 prose-li:my-0.5">
+                    <Markdown>{m.content}</Markdown>
+                  </div>
                 ) : (
                   <p className="text-sm whitespace-pre-wrap">{m.content}</p>
                 )}
                 {m.critique && (
-                  <div className="mt-3 pt-3 border-t flex flex-wrap items-center gap-2 text-xs">
-                    <Badge variant="outline">score {m.critique.score ?? "?"}/5</Badge>
-                    {m.critique.severity && (
-                      <Badge variant="secondary">{m.critique.severity}</Badge>
+                  <div className="mt-3 pt-3 border-t space-y-2">
+                    <div className="flex flex-wrap items-center gap-2 text-xs">
+                      <Badge variant="outline">{m.critique.score ?? "?"}/10</Badge>
+                      {m.critique.severity && (
+                        <Badge variant={m.critique.severity === "严重" ? "destructive" : "secondary"}>
+                          {m.critique.severity}
+                        </Badge>
+                      )}
+                      {m.critique.weakness_topics?.map((wt) => (
+                        <Badge key={wt} variant="destructive">{wt}</Badge>
+                      ))}
+                      {m.critique.feedback?.summary && (
+                        <span className="text-muted-foreground">{m.critique.feedback.summary}</span>
+                      )}
+                    </div>
+                    {m.critique.feedback && (m.critique.feedback.suggestions?.length || m.critique.feedback.corrections?.length) && (
+                      <details className="text-xs">
+                        <summary className="cursor-pointer text-muted-foreground hover:text-foreground">
+                          {language === "zh" ? "展开详细反馈" : "Show detailed feedback"}
+                        </summary>
+                        <div className="mt-2 space-y-1.5 pl-2 border-l-2 border-muted">
+                          {m.critique.feedback.corrections && m.critique.feedback.corrections.length > 0 && (
+                            <div>
+                              <span className="font-medium text-destructive">{language === "zh" ? "技术纠错：" : "Corrections:"}</span>
+                              <ul className="list-disc pl-4 mt-0.5">
+                                {m.critique.feedback.corrections.map((c, i) => <li key={i}>{c}</li>)}
+                              </ul>
+                            </div>
+                          )}
+                          {m.critique.feedback.suggestions && m.critique.feedback.suggestions.length > 0 && (
+                            <div>
+                              <span className="font-medium">{language === "zh" ? "修改建议：" : "Suggestions:"}</span>
+                              <ul className="list-disc pl-4 mt-0.5">
+                                {m.critique.feedback.suggestions.map((s, i) => <li key={i}>{s}</li>)}
+                              </ul>
+                            </div>
+                          )}
+                        </div>
+                      </details>
                     )}
-                    {m.critique.weakness_topics?.map((wt) => (
-                      <Badge key={wt} variant="destructive">{wt}</Badge>
-                    ))}
                   </div>
                 )}
                 {isLastCandidate && (

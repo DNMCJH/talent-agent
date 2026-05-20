@@ -276,17 +276,17 @@ async def take_turn(
     critique_raw = await call_llm(
         system=CRITIQUE_SYSTEM,
         user_message=f"Question: {last_question}\nAnswer: {candidate_message}",
-        max_tokens=200,
+        max_tokens=500,
     )
     try:
         critique = json.loads(critique_raw)
     except json.JSONDecodeError:
-        critique = {"score": 3, "weakness_topics": [], "severity": "mild", "next_focus": None}
+        critique = {"score": 5, "weakness_topics": [], "severity": None, "next_focus": None, "feedback": {"summary": "", "suggestions": [], "corrections": []}}
 
     for topic in critique.get("weakness_topics") or []:
         await _bump_weakness(
             user_id, topic,
-            severity=critique.get("severity", "mild"),
+            severity=critique.get("severity", "轻微"),
             summary=candidate_message,
             session=session,
         )
@@ -509,17 +509,17 @@ async def _run_critique(
     critique_raw = await call_llm(
         system=CRITIQUE_SYSTEM,
         user_message=f"Question: {last_question}\nAnswer: {candidate_message}",
-        max_tokens=200,
+        max_tokens=500,
     )
     try:
         critique = json.loads(critique_raw)
     except json.JSONDecodeError:
-        critique = {"score": 3, "weakness_topics": [], "severity": "mild", "next_focus": None}
+        critique = {"score": 5, "weakness_topics": [], "severity": None, "next_focus": None, "feedback": {"summary": "", "suggestions": [], "corrections": []}}
 
     for topic in critique.get("weakness_topics") or []:
         await _bump_weakness(
             user_id, topic,
-            severity=critique.get("severity", "mild"),
+            severity=critique.get("severity", "轻微"),
             summary=candidate_message,
             session=session,
         )
