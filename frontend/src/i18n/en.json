@@ -3,6 +3,7 @@
     "projects": "Projects",
     "match": "Match",
     "interview": "Interview",
+    "quiz": "Quiz",
     "signOut": "Sign out"
   },
   "projects": {
@@ -88,6 +89,30 @@
     "title": "Talent Agent",
     "subtitle": "AI-powered project matching & interview prep",
     "signIn": "Continue with GitHub"
+  },
+  "quiz": {
+    "title": "Knowledge Quiz",
+    "subtitle": "AI engineering interview question bank — pick a category, answer, get instant scoring.",
+    "category": "Category",
+    "all": "All",
+    "difficulty": "Difficulty",
+    "mid": "Mid",
+    "senior": "Senior",
+    "draw": "Draw",
+    "generate": "AI Generate",
+    "generating": "Generating…",
+    "hint": "Hint",
+    "showHint": "Show hint",
+    "yourAnswer": "Your answer…",
+    "submit": "Submit for scoring",
+    "scoring": "Scoring…",
+    "score": "Score",
+    "summary": "Summary",
+    "hit": "Key points hit",
+    "missed": "Key points missed",
+    "suggestion": "Suggestion",
+    "next": "Next",
+    "companies": "Asked at"
   },
   "landing": {
     "hero": "Your AI Career Agent",

@@ -17,6 +17,7 @@ export function Nav() {
     { href: "/projects", label: t.nav.projects },
     { href: "/match", label: t.nav.match },
     { href: "/interview", label: t.nav.interview },
+    { href: "/quiz", label: t.nav.quiz },
   ];
 
   function handleSignOut() {

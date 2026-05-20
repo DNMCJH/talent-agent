@@ -3,6 +3,7 @@
     "projects": "项目",
     "match": "匹配",
     "interview": "面试",
+    "quiz": "自测",
     "signOut": "退出"
   },
   "projects": {
@@ -88,6 +89,30 @@
     "title": "Talent Agent",
     "subtitle": "AI 驱动的项目匹配与面试准备",
     "signIn": "登录"
+  },
+  "quiz": {
+    "title": "知识自测",
+    "subtitle": "AI 工程面试题库 — 选择分类，作答后获得即时评分和改进建议。",
+    "category": "分类",
+    "all": "全部",
+    "difficulty": "难度",
+    "mid": "中级",
+    "senior": "高级",
+    "draw": "抽题",
+    "generate": "AI 出题",
+    "generating": "出题中…",
+    "hint": "提示",
+    "showHint": "显示提示",
+    "yourAnswer": "你的回答…",
+    "submit": "提交评分",
+    "scoring": "评分中…",
+    "score": "得分",
+    "summary": "总评",
+    "hit": "答到的要点",
+    "missed": "遗漏的要点",
+    "suggestion": "改进建议",
+    "next": "下一题",
+    "companies": "出题公司"
   },
   "landing": {
     "hero": "你的 AI 求职助手",
