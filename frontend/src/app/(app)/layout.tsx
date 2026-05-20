@@ -4,6 +4,7 @@ import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { Nav } from "@/components/nav";
+import { EmailVerifyBanner } from "@/components/email-verify-banner";
 import { useAuth } from "@/lib/auth-context";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
@@ -29,7 +30,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen flex flex-col">
       <Nav />
-      <main className="flex-1 container max-w-7xl mx-auto px-6 py-6">{children}</main>
+      <EmailVerifyBanner />
+      <main className="flex-1 container max-w-7xl mx-auto px-4 sm:px-6 py-6">{children}</main>
     </div>
   );
 }

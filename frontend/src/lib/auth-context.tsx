@@ -14,6 +14,7 @@ type AuthContextType = AuthState & {
   login: (email: string, password: string) => Promise<void>;
   register: (email: string, password: string) => Promise<void>;
   logout: () => void;
+  setSession: (token: string, userId: number) => void;
 };
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -76,7 +77,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   return (
-    <AuthContext.Provider value={{ ...state, login, register, logout }}>
+    <AuthContext.Provider value={{ ...state, login, register, logout, setSession: persist }}>
       {children}
     </AuthContext.Provider>
   );

@@ -51,6 +51,33 @@ async def send_email(*, to: str, subject: str, html: str, text: str | None = Non
         return False
 
 
+def build_password_reset_email(*, link: str, to_email: str) -> tuple[str, str, str]:
+    """Returns (subject, html, text). Bilingual reset email with 1h expiry warning."""
+    subject = "Reset your Talent Agent password / 重置密码"
+    text = (
+        f"Hi,\n\nA password reset was requested for your Talent Agent account.\n"
+        f"Reset link (expires in 1 hour):\n{link}\n\n"
+        f"If you did not request this, ignore this email.\n\n"
+        f"你好，\n\n有人为你的 Talent Agent 账号申请了密码重置。\n"
+        f"重置链接（1 小时内有效）：\n{link}\n\n"
+        f"如果不是你发起的，请忽略此邮件。\n"
+    )
+    html = f"""
+<div style="font-family: -apple-system, sans-serif; max-width: 480px; margin: 0 auto;">
+  <h2>Reset your password / 重置密码</h2>
+  <p>Hi {to_email},</p>
+  <p>Click the button to set a new password:</p>
+  <p style="margin: 24px 0;">
+    <a href="{link}" style="background: #111; color: #fff; padding: 10px 20px; text-decoration: none; border-radius: 6px;">Reset password</a>
+  </p>
+  <p style="font-size: 12px; color: #666;">Link expires in 1 hour / 链接 1 小时内有效</p>
+  <hr style="border: none; border-top: 1px solid #eee; margin: 24px 0;" />
+  <p style="font-size: 12px; color: #666;">If you did not request this, just ignore this email.</p>
+</div>
+""".strip()
+    return subject, html, text
+
+
 def build_verification_email(*, link: str, to_email: str) -> tuple[str, str, str]:
     """Returns (subject, html, text). Bilingual by default — friendlier for our users."""
     subject = "Verify your Talent Agent email / 邮箱验证"

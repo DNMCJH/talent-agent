@@ -101,7 +101,56 @@
   "login": {
     "title": "Talent Agent",
     "subtitle": "AI-powered project matching & interview prep",
-    "signIn": "Continue with GitHub"
+    "signIn": "Continue with GitHub",
+    "emailLabel": "Email",
+    "passwordLabel": "Password (min 6 chars)",
+    "signInBtn": "Sign in",
+    "signUpBtn": "Sign up",
+    "noAccount": "No account? Sign up",
+    "hasAccount": "Already have an account? Sign in",
+    "or": "OR",
+    "github": "Continue with GitHub",
+    "githubHint": "Link GitHub to import private repos",
+    "forgot": "Forgot password?",
+    "registerSentTitle": "Verification email sent",
+    "registerSentBody": "We've sent a verification link to {email} (valid for 24 hours). Check your inbox (and spam folder)."
+  },
+  "verify": {
+    "verifying": "Verifying…",
+    "success": "Email verified!",
+    "successHint": "You can close this page and return to the app.",
+    "back": "Back to home",
+    "expired": "Verification link has expired. Please request a new one from the app.",
+    "invalid": "Invalid verification link."
+  },
+  "banner": {
+    "unverifiedTitle": "Email not verified",
+    "unverifiedBody": "Check your inbox at {email} (incl. spam) to verify your address.",
+    "resend": "Resend email",
+    "resending": "Sending…",
+    "resent": "Email re-sent",
+    "alreadyVerified": "Already verified",
+    "noProvider": "Email service not configured — contact admin"
+  },
+  "forgot": {
+    "title": "Forgot password",
+    "subtitle": "Enter your registered email and we'll send a reset link.",
+    "submit": "Send reset link",
+    "sending": "Sending…",
+    "sent": "If that email is registered, a reset link has been sent (valid for 1 hour).",
+    "back": "Back to login"
+  },
+  "reset": {
+    "title": "Reset password",
+    "subtitle": "Enter a new password (at least 6 characters).",
+    "newPwd": "New password",
+    "confirmPwd": "Confirm password",
+    "mismatch": "Passwords do not match",
+    "submit": "Reset password",
+    "submitting": "Resetting…",
+    "success": "Password reset, signing you in…",
+    "expired": "Reset link has expired. Please request a new one.",
+    "invalid": "Invalid reset link."
   },
   "quiz": {
     "title": "Knowledge Quiz",

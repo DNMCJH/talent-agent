@@ -29,6 +29,9 @@ class ProjectOut(BaseModel):
 class ImportGitHubIn(BaseModel):
     github_url: str
     analysis_depth: str = "medium"  # 'medium' | 'heavy'
+    # Optional: the caller's GitHub OAuth access token. Required to import
+    # private repos because the server-side PAT only covers a fixed scope.
+    github_token: str | None = None
 
 
 @router.get("", response_model=list[ProjectOut])
@@ -63,8 +66,12 @@ async def import_github(
             status.HTTP_409_CONFLICT, "this repository is already imported"
         )
 
+    # Prefer the user's OAuth access token (covers their private repos);
+    # fall back to the server PAT for public repos when the user hasn't
+    # linked GitHub yet (email-registered users importing a public URL).
+    gh_token = body.github_token or settings.github_token or None
     try:
-        doc = await scan_github_repo(body.github_url, token=settings.github_token or None)
+        doc = await scan_github_repo(body.github_url, token=gh_token)
     except ValueError as e:
         raise HTTPException(status.HTTP_404_NOT_FOUND, str(e)) from e
     except Exception as e:
@@ -120,6 +127,7 @@ async def delete_project(
 
 class GitHubUserReposIn(BaseModel):
     username: str
+    github_token: str | None = None
 
 
 class RepoOut(BaseModel):
@@ -136,10 +144,13 @@ async def list_github_user_repos(
     body: GitHubUserReposIn,
     user: User = Depends(get_current_user),
 ) -> list[RepoOut]:
-    """Fetch public repos for a GitHub username using server-side token."""
+    """Fetch repos for a GitHub username. With user OAuth token, private
+    repos are included too; otherwise falls back to the server PAT and only
+    public repos are returned."""
     headers = {"Accept": "application/vnd.github+json"}
-    if settings.github_token:
-        headers["Authorization"] = f"Bearer {settings.github_token}"
+    tok = body.github_token or settings.github_token
+    if tok:
+        headers["Authorization"] = f"Bearer {tok}"
     async with httpx.AsyncClient(timeout=15.0) as client:
         resp = await client.get(
             f"https://api.github.com/users/{body.username}/repos",

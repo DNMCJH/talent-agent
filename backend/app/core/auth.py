@@ -104,3 +104,24 @@ def decode_email_verify_token(token: str) -> int:
     if payload.get("purpose") != "email_verify":
         raise jwt.InvalidTokenError("wrong token purpose")
     return int(payload["sub"])
+
+
+# Password reset tokens — short TTL so a leaked reset link expires quickly.
+PASSWORD_RESET_TTL_HOURS = 1
+
+
+def issue_password_reset_token(user_id: int) -> str:
+    payload = {
+        "sub": str(user_id),
+        "purpose": "password_reset",
+        "exp": datetime.now(UTC) + timedelta(hours=PASSWORD_RESET_TTL_HOURS),
+        "iat": datetime.now(UTC),
+    }
+    return jwt.encode(payload, settings.api_secret, algorithm=JWT_ALG)
+
+
+def decode_password_reset_token(token: str) -> int:
+    payload = jwt.decode(token, settings.api_secret, algorithms=[JWT_ALG])
+    if payload.get("purpose") != "password_reset":
+        raise jwt.InvalidTokenError("wrong token purpose")
+    return int(payload["sub"])

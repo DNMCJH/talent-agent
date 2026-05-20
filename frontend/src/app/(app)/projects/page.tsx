@@ -100,7 +100,10 @@ function RepoBrowser({
     if (!username.trim()) return;
     setLoading(true);
     try {
-      const data = await api.post<GHRepo[]>("/projects/repos/github-user", { username: username.trim() });
+      const data = await api.post<GHRepo[]>("/projects/repos/github-user", {
+        username: username.trim(),
+        github_token: ghToken,
+      });
       setRepos(data);
     } catch (e) {
       const msg = e instanceof ApiError ? e.message : String(e);
@@ -243,6 +246,8 @@ function RepoBrowser({
 export default function ProjectsPage() {
   const api = useApi();
   const { t } = useI18n();
+  const { data: session } = useSession();
+  const ghToken = session?.githubAccessToken;
   const [url, setUrl] = useState("");
   const [importing, setImporting] = useState(false);
   const [browseOpen, setBrowseOpen] = useState(false);
@@ -257,7 +262,10 @@ export default function ProjectsPage() {
     if (!url.trim()) return;
     setImporting(true);
     try {
-      await api.post("/projects/import/github", { github_url: url.trim() });
+      await api.post("/projects/import/github", {
+        github_url: url.trim(),
+        github_token: ghToken,
+      });
       toast.success(t.projects.imported);
       setUrl("");
       mutate("/projects");
@@ -283,6 +291,7 @@ export default function ProjectsPage() {
       try {
         await api.post("/projects/import/github", {
           github_url: statuses[i].url,
+          github_token: ghToken,
         });
         statuses[i].state = "done";
       } catch (e) {

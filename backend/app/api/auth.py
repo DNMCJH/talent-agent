@@ -8,17 +8,19 @@ import jwt
 from app.core.auth import (
     OAuthError,
     decode_email_verify_token,
+    decode_password_reset_token,
     exchange_github_code,
     fetch_github_user,
+    hash_password,
     issue_email_verify_token,
     issue_jwt,
-    hash_password,
+    issue_password_reset_token,
     verify_password,
 )
 from app.core.config import settings
 from app.core.db import get_session
 from app.core.deps import get_current_user
-from app.core.mail import build_verification_email, send_email
+from app.core.mail import build_password_reset_email, build_verification_email, send_email
 from app.models.user import User
 
 router = APIRouter()
@@ -215,4 +217,57 @@ async def login(
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "invalid email or password")
     if not verify_password(body.password, user.password_hash):
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "invalid email or password")
+    return TokenOut(access_token=issue_jwt(user.id), user_id=user.id, github_login=user.github_login)
+
+
+class ForgotPasswordIn(BaseModel):
+    email: EmailStr
+
+
+@router.post("/forgot-password")
+async def forgot_password(
+    body: ForgotPasswordIn,
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, str]:
+    """Always returns 'ok' to avoid leaking which emails are registered.
+    If the user exists and has a password (i.e. not pure GitHub OAuth),
+    send a reset link by email."""
+    result = await session.execute(select(User).where(User.email == body.email))
+    user = result.scalar_one_or_none()
+    if user is not None and user.password_hash is not None and user.email:
+        token = issue_password_reset_token(user.id)
+        link = f"{settings.api_public_base}/reset-password?token={token}"
+        subject, html, text = build_password_reset_email(link=link, to_email=user.email)
+        await send_email(to=user.email, subject=subject, html=html, text=text)
+    return {"status": "ok"}
+
+
+class ResetPasswordIn(BaseModel):
+    token: str
+    password: str
+
+
+@router.post("/reset-password", response_model=TokenOut)
+async def reset_password(
+    body: ResetPasswordIn,
+    session: AsyncSession = Depends(get_session),
+) -> TokenOut:
+    if len(body.password) < 6:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "password must be at least 6 characters")
+    try:
+        user_id = decode_password_reset_token(body.token)
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "reset link expired")
+    except jwt.InvalidTokenError:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "invalid reset link")
+
+    user = await session.get(User, user_id)
+    if user is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "user not found")
+    user.password_hash = hash_password(body.password)
+    # Successfully resetting via the email link also implicitly verifies the email,
+    # because only the inbox owner could have received the token.
+    if user.email and not user.email_verified:
+        user.email_verified = True
+    await session.commit()
     return TokenOut(access_token=issue_jwt(user.id), user_id=user.id, github_login=user.github_login)

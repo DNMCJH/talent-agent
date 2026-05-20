@@ -101,7 +101,56 @@
   "login": {
     "title": "Talent Agent",
     "subtitle": "AI 驱动的项目匹配与面试准备",
-    "signIn": "登录"
+    "signIn": "登录",
+    "emailLabel": "邮箱",
+    "passwordLabel": "密码（至少 6 位）",
+    "signInBtn": "登录",
+    "signUpBtn": "注册",
+    "noAccount": "没有账号？注册",
+    "hasAccount": "已有账号？登录",
+    "or": "或",
+    "github": "使用 GitHub 登录",
+    "githubHint": "连接 GitHub 可导入私有仓库",
+    "forgot": "忘记密码？",
+    "registerSentTitle": "验证邮件已发送",
+    "registerSentBody": "我们已向 {email} 发送了验证链接（24 小时内有效）。请检查收件箱（含垃圾箱）。"
+  },
+  "verify": {
+    "verifying": "正在验证…",
+    "success": "邮箱已验证！",
+    "successHint": "你可以关闭此页面，回到应用继续使用。",
+    "back": "返回首页",
+    "expired": "验证链接已过期，请回到应用重新发送。",
+    "invalid": "验证链接无效。"
+  },
+  "banner": {
+    "unverifiedTitle": "邮箱未验证",
+    "unverifiedBody": "请检查 {email} 的收件箱（含垃圾箱）以完成验证。",
+    "resend": "重新发送",
+    "resending": "发送中…",
+    "resent": "已重新发送",
+    "alreadyVerified": "已验证",
+    "noProvider": "邮件服务未配置，请联系管理员"
+  },
+  "forgot": {
+    "title": "找回密码",
+    "subtitle": "输入你注册时的邮箱，我们会发送重置链接。",
+    "submit": "发送重置链接",
+    "sending": "发送中…",
+    "sent": "如果该邮箱已注册，重置链接已发送（1 小时内有效）。",
+    "back": "返回登录"
+  },
+  "reset": {
+    "title": "重置密码",
+    "subtitle": "请输入新密码（至少 6 位）。",
+    "newPwd": "新密码",
+    "confirmPwd": "确认新密码",
+    "mismatch": "两次输入的密码不一致",
+    "submit": "重置密码",
+    "submitting": "正在重置…",
+    "success": "密码已重置，即将登录…",
+    "expired": "重置链接已过期，请重新申请。",
+    "invalid": "重置链接无效。"
   },
   "quiz": {
     "title": "知识自测",
