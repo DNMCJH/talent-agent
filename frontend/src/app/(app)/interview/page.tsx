@@ -422,7 +422,7 @@ export default function InterviewPage() {
                         <span className="text-muted-foreground">{m.critique.feedback.summary}</span>
                       )}
                     </div>
-                    {m.critique.feedback && (m.critique.feedback.suggestions?.length || m.critique.feedback.corrections?.length) && (
+                    {m.critique.feedback && (!!m.critique.feedback.suggestions?.length || !!m.critique.feedback.corrections?.length) && (
                       <details className="text-xs">
                         <summary className="cursor-pointer text-muted-foreground hover:text-foreground">
                           {language === "zh" ? "展开详细反馈" : "Show detailed feedback"}
