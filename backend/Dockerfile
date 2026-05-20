@@ -20,7 +20,8 @@ RUN uv pip install --system \
     "sqlalchemy[asyncio]>=2.0.35" "asyncpg>=0.30.0" "alembic>=1.13.0" "redis>=5.1.0" \
     "qdrant-client>=1.12.0" "sentence-transformers>=3.0.0,<4.0.0" "transformers>=4.38.0,<5.0.0" \
     "openai>=1.50.0" "pydantic>=2.9.0" "pydantic-settings>=2.5.0" "gitpython>=3.1.40" \
-    "email-validator>=2.0.0"
+    "email-validator>=2.0.0" \
+    "python-multipart>=0.0.9" "pymupdf>=1.24.0" "python-docx>=1.1.0"
 
 COPY app ./app
 COPY alembic.ini ./
