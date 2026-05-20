@@ -17,6 +17,7 @@ import {
 import { toast } from "sonner";
 import { Loader2, MessageSquare, FileText, Copy, Check } from "lucide-react";
 import { useI18n } from "@/i18n/context";
+import { copyToClipboard } from "@/lib/clipboard";
 
 type Skill = { name: string; level: string };
 type ParsedJD = {
@@ -117,12 +118,16 @@ export default function MatchPage() {
     }
   }
 
-  function copyResume() {
+  async function copyResume() {
     if (!resumeData) return;
     const text = `${resumeData.project_title}\n${resumeData.stack_line}\n\n${resumeData.star_bullets.map((b) => `• ${b}`).join("\n")}`;
-    navigator.clipboard.writeText(text);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    const ok = await copyToClipboard(text);
+    if (ok) {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } else {
+      toast.error(locale === "zh" ? "复制失败，请手动选中复制" : "Copy failed, please select and copy manually");
+    }
   }
 
   return (
@@ -229,6 +234,13 @@ export default function MatchPage() {
                 <CardDescription>
                   {t.match.coverage} {(m.coverage * 100).toFixed(0)}% · {t.match.plusCoverage} {(m.plus_coverage * 100).toFixed(0)}%
                 </CardDescription>
+                {m.project.stack && m.project.stack.length > 0 && (
+                  <div className="flex flex-wrap gap-1 pt-1">
+                    {m.project.stack.map((tech) => (
+                      <Badge key={tech} variant="outline" className="text-xs font-normal">{tech}</Badge>
+                    ))}
+                  </div>
+                )}
               </CardHeader>
               <CardContent className="space-y-2 text-sm">
                 {m.matched_skills.length > 0 && (

@@ -11,6 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { Loader2, Copy, Check, ArrowLeft } from "lucide-react";
+import { copyToClipboard } from "@/lib/clipboard";
 
 type Project = { id: number; name: string };
 
@@ -147,7 +148,7 @@ export default function FullResumePage() {
     );
   }
 
-  function copyAll() {
+  async function copyAll() {
     const text = items
       .filter((it) => it.bundle)
       .map((it) => {
@@ -156,9 +157,13 @@ export default function FullResumePage() {
       })
       .join("\n\n---\n\n");
     if (!text) return;
-    navigator.clipboard.writeText(text);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    const ok = await copyToClipboard(text);
+    if (ok) {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } else {
+      toast.error(locale === "zh" ? "复制失败，请手动选中复制" : "Copy failed, please select and copy manually");
+    }
   }
 
   const hint = locale === "zh"
