@@ -23,6 +23,19 @@
     "imported": "项目已导入",
     "deleted": "已删除"
   },
+  "resume": {
+    "edit": "编辑",
+    "save": "保存",
+    "cancel": "取消",
+    "delete": "删除",
+    "addBullet": "+ 添加要点",
+    "editTitle": "编辑标题",
+    "editStack": "编辑技术栈",
+    "deleteBulletConfirm": "删除这条要点？",
+    "edited": "已修改",
+    "reset": "恢复 AI 原始",
+    "resetConfirm": "丢弃所有手动修改，恢复 AI 生成的原始内容？"
+  },
   "match": {
     "title": "匹配",
     "subtitle": "粘贴职位描述，我们会对你的项目进行排名。",

@@ -23,6 +23,19 @@
     "imported": "Project imported",
     "deleted": "Deleted"
   },
+  "resume": {
+    "edit": "Edit",
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "addBullet": "+ Add bullet",
+    "editTitle": "Edit title",
+    "editStack": "Edit stack",
+    "deleteBulletConfirm": "Delete this bullet?",
+    "edited": "Edited",
+    "reset": "Reset to AI output",
+    "resetConfirm": "Discard all manual edits and restore AI-generated content?"
+  },
   "match": {
     "title": "Match",
     "subtitle": "Paste a job description; we'll rank your projects against it.",

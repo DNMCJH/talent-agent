@@ -9,8 +9,10 @@ import { useI18n } from "@/i18n/context";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
-import { Loader2, Copy, Check, ArrowLeft } from "lucide-react";
+import { Loader2, Copy, Check, ArrowLeft, Pencil, Trash2, Plus, RotateCcw } from "lucide-react";
 import { copyToClipboard } from "@/lib/clipboard";
 
 type Project = { id: number; name: string };
@@ -27,6 +29,16 @@ type ProgressItem = {
   total: number;
   project_name: string;
   bundle: ResumeBundle | null; // null while generating
+  originalBundle?: ResumeBundle | null; // snapshot for reset
+  edited?: boolean;
+};
+
+const STORAGE_KEY = "talent-agent.resume.v1";
+
+type SavedState = {
+  jd: string;
+  selectedIds: number[];
+  items: ProgressItem[];
 };
 
 export default function FullResumePage() {
@@ -49,6 +61,7 @@ export default function FullResumePage() {
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
+    // Priority: URL params -> saved resume state -> match-page JD.
     const urlJd = searchParams.get("jd");
     const urlIds = searchParams.get("project_ids");
     if (urlIds) {
@@ -56,8 +69,22 @@ export default function FullResumePage() {
     }
     if (urlJd) {
       setJd(urlJd);
-      return;
     }
+    try {
+      const saved = sessionStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved) as SavedState;
+        if (parsed.items?.length) setItems(parsed.items);
+        if (!urlIds && parsed.selectedIds?.length) setSelectedIds(parsed.selectedIds);
+        if (!urlJd && parsed.jd) {
+          setJd(parsed.jd);
+          return;
+        }
+      }
+    } catch {
+      // ignore corrupted storage
+    }
+    if (urlJd) return;
     try {
       const raw = sessionStorage.getItem("talent-agent.match.v1");
       if (raw) {
@@ -68,6 +95,20 @@ export default function FullResumePage() {
       // ignore
     }
   }, [searchParams]);
+
+  // Persist resume state (items + jd + selectedIds) to sessionStorage.
+  // Only persist completed bundles to avoid restoring half-streamed state.
+  useEffect(() => {
+    if (items.length === 0) return;
+    const allDone = items.every((it) => it.bundle !== null);
+    if (!allDone) return;
+    try {
+      const payload: SavedState = { jd, selectedIds, items };
+      sessionStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
+    } catch {
+      // quota or serialization errors are non-fatal
+    }
+  }, [items, jd, selectedIds]);
 
   useEffect(() => {
     return () => sseCloseRef.current?.();
@@ -90,6 +131,11 @@ export default function FullResumePage() {
     if (!api.token || !jd.trim() || selectedIds.length === 0) return;
     setRunning(true);
     setItems([]);
+    try {
+      sessionStorage.removeItem(STORAGE_KEY);
+    } catch {
+      // ignore
+    }
 
     sseCloseRef.current?.();
     sseCloseRef.current = openSSE(
@@ -133,6 +179,8 @@ export default function FullResumePage() {
                 total: existing?.total ?? 0,
                 project_name: ev.project_name,
                 bundle: ev.bundle,
+                originalBundle: structuredClone(ev.bundle),
+                edited: false,
               };
               return next;
             });
@@ -146,6 +194,81 @@ export default function FullResumePage() {
         },
       },
     );
+  }
+
+  function updateBundle(index: number, patch: Partial<ResumeBundle>) {
+    setItems((prev) => {
+      const next = [...prev];
+      const it = next[index];
+      if (!it?.bundle) return prev;
+      next[index] = {
+        ...it,
+        bundle: { ...it.bundle, ...patch },
+        edited: true,
+      };
+      return next;
+    });
+  }
+
+  function updateBullet(index: number, bulletIdx: number, value: string) {
+    setItems((prev) => {
+      const next = [...prev];
+      const it = next[index];
+      if (!it?.bundle) return prev;
+      const bullets = [...it.bundle.star_bullets];
+      bullets[bulletIdx] = value;
+      next[index] = {
+        ...it,
+        bundle: { ...it.bundle, star_bullets: bullets },
+        edited: true,
+      };
+      return next;
+    });
+  }
+
+  function deleteBullet(index: number, bulletIdx: number) {
+    if (!confirm(t.resume.deleteBulletConfirm)) return;
+    setItems((prev) => {
+      const next = [...prev];
+      const it = next[index];
+      if (!it?.bundle) return prev;
+      const bullets = it.bundle.star_bullets.filter((_, i) => i !== bulletIdx);
+      next[index] = {
+        ...it,
+        bundle: { ...it.bundle, star_bullets: bullets },
+        edited: true,
+      };
+      return next;
+    });
+  }
+
+  function addBullet(index: number) {
+    setItems((prev) => {
+      const next = [...prev];
+      const it = next[index];
+      if (!it?.bundle) return prev;
+      next[index] = {
+        ...it,
+        bundle: { ...it.bundle, star_bullets: [...it.bundle.star_bullets, ""] },
+        edited: true,
+      };
+      return next;
+    });
+  }
+
+  function resetBundle(index: number) {
+    if (!confirm(t.resume.resetConfirm)) return;
+    setItems((prev) => {
+      const next = [...prev];
+      const it = next[index];
+      if (!it?.originalBundle) return prev;
+      next[index] = {
+        ...it,
+        bundle: structuredClone(it.originalBundle),
+        edited: false,
+      };
+      return next;
+    });
   }
 
   async function copyAll() {
@@ -265,40 +388,202 @@ export default function FullResumePage() {
 
       <div className="space-y-4">
         {items.map((it) => (
-          <Card key={`${it.index}-${it.project_name}`}>
-            <CardHeader>
-              <CardTitle className="text-base flex items-center gap-2">
-                <Badge variant="outline" className="text-xs">{it.index + 1}</Badge>
-                {it.bundle?.project_title || it.project_name}
-              </CardTitle>
-              {it.bundle && (
-                <CardDescription className="text-xs">
-                  {t.match.resumeStack}: {it.bundle.stack_line}
-                </CardDescription>
-              )}
-            </CardHeader>
-            <CardContent>
-              {it.bundle ? (
-                <ul className="space-y-2">
-                  {it.bundle.star_bullets.map((b, i) => (
-                    <li
-                      key={i}
-                      className="text-sm pl-4 relative before:content-['•'] before:absolute before:left-0 before:text-muted-foreground"
-                    >
-                      {b}
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <p className="text-sm text-muted-foreground italic flex items-center gap-2">
-                  <Loader2 className="h-3 w-3 animate-spin" />
-                  {locale === "zh" ? "AI 正在生成…" : "AI is generating…"}
-                </p>
-              )}
-            </CardContent>
-          </Card>
+          <EditableBundleCard
+            key={`${it.index}-${it.project_name}`}
+            item={it}
+            stackLabel={t.match.resumeStack}
+            generating={locale === "zh" ? "AI 正在生成…" : "AI is generating…"}
+            onUpdateBundle={(patch) => updateBundle(it.index, patch)}
+            onUpdateBullet={(bulletIdx, value) => updateBullet(it.index, bulletIdx, value)}
+            onDeleteBullet={(bulletIdx) => deleteBullet(it.index, bulletIdx)}
+            onAddBullet={() => addBullet(it.index)}
+            onReset={() => resetBundle(it.index)}
+          />
         ))}
       </div>
     </div>
+  );
+}
+
+type EditableBundleCardProps = {
+  item: ProgressItem;
+  stackLabel: string;
+  generating: string;
+  onUpdateBundle: (patch: Partial<ResumeBundle>) => void;
+  onUpdateBullet: (bulletIdx: number, value: string) => void;
+  onDeleteBullet: (bulletIdx: number) => void;
+  onAddBullet: () => void;
+  onReset: () => void;
+};
+
+function EditableBundleCard({
+  item,
+  stackLabel,
+  generating,
+  onUpdateBundle,
+  onUpdateBullet,
+  onDeleteBullet,
+  onAddBullet,
+  onReset,
+}: EditableBundleCardProps) {
+  const { t } = useI18n();
+  const [editingTitle, setEditingTitle] = useState(false);
+  const [editingStack, setEditingStack] = useState(false);
+  const [editingBullet, setEditingBullet] = useState<number | null>(null);
+
+  const bundle = item.bundle;
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-start justify-between gap-2">
+          <CardTitle className="text-base flex items-center gap-2 flex-1 min-w-0">
+            <Badge variant="outline" className="text-xs shrink-0">{item.index + 1}</Badge>
+            {bundle ? (
+              editingTitle ? (
+                <Input
+                  autoFocus
+                  defaultValue={bundle.project_title}
+                  onBlur={(e) => {
+                    onUpdateBundle({ project_title: e.target.value });
+                    setEditingTitle(false);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      onUpdateBundle({ project_title: e.currentTarget.value });
+                      setEditingTitle(false);
+                    } else if (e.key === "Escape") {
+                      setEditingTitle(false);
+                    }
+                  }}
+                  className="h-8 text-base"
+                />
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setEditingTitle(true)}
+                  className="text-left hover:bg-muted/50 rounded px-1 py-0.5 -mx-1 truncate"
+                  title={t.resume.editTitle}
+                >
+                  {bundle.project_title || item.project_name}
+                </button>
+              )
+            ) : (
+              <span className="truncate">{item.project_name}</span>
+            )}
+          </CardTitle>
+          {bundle && item.edited && (
+            <div className="flex items-center gap-1.5 shrink-0">
+              <Badge variant="secondary" className="text-xs">{t.resume.edited}</Badge>
+              <Button size="sm" variant="ghost" onClick={onReset} title={t.resume.reset}>
+                <RotateCcw className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+          )}
+        </div>
+        {bundle && (
+          <CardDescription className="text-xs">
+            <span className="font-medium">{stackLabel}: </span>
+            {editingStack ? (
+              <Input
+                autoFocus
+                defaultValue={bundle.stack_line}
+                onBlur={(e) => {
+                  onUpdateBundle({ stack_line: e.target.value });
+                  setEditingStack(false);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    onUpdateBundle({ stack_line: e.currentTarget.value });
+                    setEditingStack(false);
+                  } else if (e.key === "Escape") {
+                    setEditingStack(false);
+                  }
+                }}
+                className="h-7 text-xs inline-block w-auto min-w-[200px]"
+              />
+            ) : (
+              <button
+                type="button"
+                onClick={() => setEditingStack(true)}
+                className="hover:bg-muted/50 rounded px-1 -mx-1"
+                title={t.resume.editStack}
+              >
+                {bundle.stack_line}
+              </button>
+            )}
+          </CardDescription>
+        )}
+      </CardHeader>
+      <CardContent>
+        {bundle ? (
+          <>
+            <ul className="space-y-2">
+              {bundle.star_bullets.map((b, i) => (
+                <li key={i} className="group flex items-start gap-2">
+                  <span className="text-muted-foreground select-none pt-1">•</span>
+                  {editingBullet === i ? (
+                    <Textarea
+                      autoFocus
+                      defaultValue={b}
+                      rows={3}
+                      onBlur={(e) => {
+                        onUpdateBullet(i, e.target.value);
+                        setEditingBullet(null);
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === "Escape") setEditingBullet(null);
+                      }}
+                      className="text-sm flex-1"
+                    />
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setEditingBullet(i)}
+                      className="text-sm text-left flex-1 hover:bg-muted/50 rounded px-1 py-0.5 -mx-1"
+                      title={t.resume.edit}
+                    >
+                      {b || <span className="italic text-muted-foreground">{t.resume.edit}…</span>}
+                    </button>
+                  )}
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="opacity-0 group-hover:opacity-100 transition-opacity h-7 w-7 p-0 shrink-0"
+                    onClick={() => setEditingBullet(i)}
+                    title={t.resume.edit}
+                  >
+                    <Pencil className="h-3 w-3" />
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="opacity-0 group-hover:opacity-100 transition-opacity h-7 w-7 p-0 shrink-0 text-destructive hover:text-destructive"
+                    onClick={() => onDeleteBullet(i)}
+                    title={t.resume.delete}
+                  >
+                    <Trash2 className="h-3 w-3" />
+                  </Button>
+                </li>
+              ))}
+            </ul>
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={onAddBullet}
+              className="mt-2 text-xs text-muted-foreground hover:text-foreground"
+            >
+              <Plus className="h-3 w-3 mr-1" />
+              {t.resume.addBullet}
+            </Button>
+          </>
+        ) : (
+          <p className="text-sm text-muted-foreground italic flex items-center gap-2">
+            <Loader2 className="h-3 w-3 animate-spin" />
+            {generating}
+          </p>
+        )}
+      </CardContent>
+    </Card>
   );
 }
