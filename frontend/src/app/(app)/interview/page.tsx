@@ -46,8 +46,14 @@ export default function InterviewPage() {
 
   useEffect(() => {
     const pid = searchParams.get("project_id");
+    const pids = searchParams.get("project_ids");
     const jdParam = searchParams.get("jd");
-    if (pid) setSelectedIds([Number(pid)]);
+    if (pids) {
+      const ids = pids.split(",").map((x) => Number(x.trim())).filter((n) => Number.isFinite(n) && n > 0);
+      if (ids.length > 0) setSelectedIds(ids);
+    } else if (pid) {
+      setSelectedIds([Number(pid)]);
+    }
     if (jdParam) {
       setJd(jdParam);
       return;

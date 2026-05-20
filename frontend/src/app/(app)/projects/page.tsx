@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
+import Link from "next/link";
 import { useSession } from "next-auth/react";
 import useSWR, { mutate } from "swr";
 import { useApi, ApiError } from "@/lib/api";
@@ -30,6 +31,8 @@ import {
   Search,
   CheckSquare,
   Square,
+  Upload,
+  PencilLine,
 } from "lucide-react";
 import { useI18n } from "@/i18n/context";
 
@@ -252,6 +255,9 @@ export default function ProjectsPage() {
   const [importing, setImporting] = useState(false);
   const [browseOpen, setBrowseOpen] = useState(false);
   const [batchStatus, setBatchStatus] = useState<ImportStatus[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const [dragOver, setDragOver] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { data, error, isLoading } = useSWR<Project[]>(
     api.token ? "/projects" : null,
@@ -326,6 +332,41 @@ export default function ProjectsPage() {
     }
   }
 
+  async function onUploadFile(file: File) {
+    if (!file.name.endsWith(".zip")) {
+      toast.error("Only .zip files are supported");
+      return;
+    }
+    if (file.size > 50 * 1024 * 1024) {
+      toast.error("File too large (max 50MB)");
+      return;
+    }
+    setUploading(true);
+    try {
+      await api.upload("/projects/import/upload", file, 120000);
+      toast.success(t.projects.uploadSuccess);
+      mutate("/projects");
+    } catch (e) {
+      const msg = e instanceof ApiError ? e.message : String(e);
+      toast.error(msg);
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  function onDrop(e: React.DragEvent) {
+    e.preventDefault();
+    setDragOver(false);
+    const file = e.dataTransfer.files[0];
+    if (file) onUploadFile(file);
+  }
+
+  function onFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (file) onUploadFile(file);
+    e.target.value = "";
+  }
+
   return (
     <div className="space-y-6">
       <div>
@@ -370,6 +411,64 @@ export default function ProjectsPage() {
               </Button>
             </div>
           </details>
+        </CardContent>
+      </Card>
+
+      {/* Upload local project */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">{t.projects.uploadTitle}</CardTitle>
+          <CardDescription>{t.projects.uploadDesc}</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div
+            onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+            onDragLeave={() => setDragOver(false)}
+            onDrop={onDrop}
+            onClick={() => fileInputRef.current?.click()}
+            className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors ${
+              dragOver ? "border-primary bg-primary/5" : "border-muted-foreground/25 hover:border-primary/50"
+            }`}
+          >
+            {uploading ? (
+              <div className="flex flex-col items-center gap-2">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                <p className="text-sm text-muted-foreground">{t.projects.uploading}</p>
+              </div>
+            ) : (
+              <div className="flex flex-col items-center gap-2">
+                <Upload className="h-8 w-8 text-muted-foreground" />
+                <p className="text-sm font-medium">{t.projects.uploadDrop}</p>
+                <p className="text-xs text-muted-foreground">{t.projects.uploadBrowse}</p>
+                <p className="text-xs text-muted-foreground">{t.projects.uploadHint}</p>
+              </div>
+            )}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".zip"
+              className="hidden"
+              onChange={onFileSelect}
+              aria-label="Upload project zip file"
+            />
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Manual entry for non-code projects */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">{t.manual.title}</CardTitle>
+          <CardDescription>{t.manual.subtitle}</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Link
+            href="/projects/manual"
+            className="flex w-full items-center justify-center gap-2 rounded-lg border border-border bg-background px-4 py-2 text-sm font-medium hover:bg-muted transition-colors"
+          >
+            <PencilLine className="h-4 w-4" />
+            {t.manual.submit}
+          </Link>
         </CardContent>
       </Card>
 

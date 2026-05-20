@@ -65,5 +65,36 @@ export function useApi() {
       apiFetch<T>(p, token ?? undefined, { method: "POST", body: JSON.stringify(body) }, timeoutMs),
     del: <T,>(p: string) =>
       apiFetch<T>(p, token ?? undefined, { method: "DELETE" }),
+    upload: async <T,>(p: string, file: File, timeoutMs?: number): Promise<T> => {
+      const headers = new Headers();
+      if (token) headers.set("Authorization", `Bearer ${token}`);
+      const form = new FormData();
+      form.append("file", file);
+
+      let signal: AbortSignal | undefined;
+      let controller: AbortController | undefined;
+      if (timeoutMs) {
+        controller = new AbortController();
+        signal = controller.signal;
+        setTimeout(() => controller!.abort(), timeoutMs);
+      }
+
+      const res = await fetch(`${API_BASE}${p}`, {
+        method: "POST",
+        headers,
+        body: form,
+        signal,
+      });
+      if (!res.ok) {
+        let detail = `${res.status}`;
+        try {
+          const body = await res.json();
+          const raw = body.detail ?? body;
+          detail = typeof raw === "string" ? raw : JSON.stringify(raw);
+        } catch {}
+        throw new ApiError(res.status, detail);
+      }
+      return res.json() as Promise<T>;
+    },
   };
 }

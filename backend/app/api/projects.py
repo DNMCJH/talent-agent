@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, status
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -9,9 +9,11 @@ from app.core.db import get_session
 from app.core.deps import get_current_user
 from app.models.project import Project
 from app.models.user import User
+from app.schemas.agent_models import ProjectDoc
 from app.services import vector_store
 from app.services.embedder import embed_text, project_doc_to_text
 from app.services.github_indexer import parse_github_url, scan_github_repo
+from app.services.local_project_parser import parse_uploaded_project
 
 router = APIRouter()
 
@@ -163,3 +165,190 @@ async def list_github_user_repos(
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, f"GitHub API error: {resp.status_code}")
     repos = resp.json()
     return [RepoOut(**{k: r.get(k) for k in RepoOut.model_fields}) for r in repos if not r.get("fork")]
+
+
+_MAX_UPLOAD_SIZE = 50 * 1024 * 1024  # 50 MB
+
+
+async def _persist_project(
+    *,
+    user: User,
+    session: AsyncSession,
+    doc: ProjectDoc,
+    source: str,
+    github_url: str | None = None,
+    analysis_depth: str = "medium",
+) -> Project:
+    """Create a Project row + embed it in Qdrant. Used by upload/manual/resume importers."""
+    project = Project(
+        user_id=user.id,
+        name=doc.name,
+        source=source,
+        github_url=github_url,
+        analysis_depth=analysis_depth,
+        doc=doc.model_dump(),
+    )
+    session.add(project)
+    await session.flush()
+
+    try:
+        text = project_doc_to_text(doc.name, doc.readme, doc.stack, doc.topics)
+        vector = embed_text(text)
+        await vector_store.ensure_projects_collection(vector_size=len(vector))
+        point_id = await vector_store.upsert_project(
+            user_id=user.id,
+            project_id=project.id,
+            vector=vector,
+            payload={"name": doc.name, "stack": doc.stack, "topics": doc.topics},
+        )
+        project.qdrant_point_id = point_id
+    except Exception as e:
+        await session.rollback()
+        raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, f"embed failed: {e}") from e
+
+    await session.commit()
+    await session.refresh(project)
+    return project
+
+
+@router.post("/import/upload", response_model=ProjectOut)
+async def import_upload(
+    file: UploadFile,
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> ProjectOut:
+    if not file.filename:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "no file provided")
+
+    content = await file.read()
+    if len(content) > _MAX_UPLOAD_SIZE:
+        raise HTTPException(status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, "file too large (max 50MB)")
+
+    try:
+        doc = await parse_uploaded_project(content, file.filename)
+    except ValueError as e:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, str(e)) from e
+
+    project = await _persist_project(user=user, session=session, doc=doc, source="upload")
+    return ProjectOut.model_validate(project)
+
+
+class ManualProjectIn(BaseModel):
+    name: str
+    description: str = ""
+    stack: list[str] = []
+    topics: list[str] = []
+    highlights: list[str] = []
+    repo_url: str | None = None
+    has_dockerfile: bool = False
+    has_tests: bool = False
+    deployment_signal: bool = False
+
+
+def _split_csv(s: str) -> list[str]:
+    return [x.strip() for x in s.replace("、", ",").replace("，", ",").split(",") if x.strip()]
+
+
+def _resume_readme(description: str, highlights: list[str]) -> str:
+    parts: list[str] = []
+    if description:
+        parts.append(description.strip())
+    if highlights:
+        parts.append("\n".join(f"- {h}" for h in highlights if h.strip()))
+    return "\n\n".join(parts)
+
+
+@router.post("/import/manual", response_model=ProjectOut)
+async def import_manual(
+    body: ManualProjectIn,
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> ProjectOut:
+    name = body.name.strip()
+    if not name:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "project name is required")
+
+    existing = await session.execute(
+        select(Project).where(Project.user_id == user.id, Project.name == name)
+    )
+    if existing.scalar_one_or_none() is not None:
+        raise HTTPException(status.HTTP_409_CONFLICT, f"a project named '{name}' already exists")
+
+    doc = ProjectDoc(
+        name=name,
+        path=f"manual://{name}",
+        readme=_resume_readme(body.description, body.highlights),
+        stack=body.stack,
+        topics=body.topics,
+        has_dockerfile=body.has_dockerfile,
+        has_tests=body.has_tests,
+        deployment_signal=body.deployment_signal,
+    )
+    project = await _persist_project(
+        user=user, session=session, doc=doc, source="manual", github_url=body.repo_url
+    )
+    return ProjectOut.model_validate(project)
+
+
+class ResumeProjectItem(BaseModel):
+    name: str | None = None
+    description: str | None = None
+    tech_stack: str | None = None  # comma-separated string from LLM
+    highlights: str | None = None
+
+
+class ImportFromResumeIn(BaseModel):
+    projects: list[ResumeProjectItem]
+
+
+class ImportFromResumeOut(BaseModel):
+    imported: list[ProjectOut]
+    skipped: list[dict[str, str]]  # [{name, reason}]
+
+
+@router.post("/import/from-resume", response_model=ImportFromResumeOut)
+async def import_from_resume(
+    body: ImportFromResumeIn,
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> ImportFromResumeOut:
+    """Bulk-create Project rows from a parsed resume's project list. Each becomes a
+    `source='manual'` project so the matcher and interviewer can use them like any other."""
+    imported: list[ProjectOut] = []
+    skipped: list[dict[str, str]] = []
+
+    existing_names = {
+        n for (n,) in (
+            await session.execute(select(Project.name).where(Project.user_id == user.id))
+        ).all()
+    }
+
+    for item in body.projects:
+        raw_name = (item.name or "").strip()
+        if not raw_name:
+            skipped.append({"name": "(unnamed)", "reason": "missing name"})
+            continue
+        if raw_name in existing_names:
+            skipped.append({"name": raw_name, "reason": "already exists"})
+            continue
+
+        stack = _split_csv(item.tech_stack or "")
+        highlights = [h for h in (item.highlights or "").split("\n") if h.strip()]
+        doc = ProjectDoc(
+            name=raw_name,
+            path=f"resume://{raw_name}",
+            readme=_resume_readme(item.description or "", highlights),
+            stack=stack,
+            topics=stack[:5],
+        )
+        try:
+            project = await _persist_project(
+                user=user, session=session, doc=doc, source="manual"
+            )
+            existing_names.add(raw_name)
+            imported.append(ProjectOut.model_validate(project))
+        except HTTPException as e:
+            skipped.append({"name": raw_name, "reason": e.detail if isinstance(e.detail, str) else "error"})
+
+    return ImportFromResumeOut(imported=imported, skipped=skipped)
+
