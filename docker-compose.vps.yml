@@ -1,0 +1,123 @@
+# VPS deployment variant — no Caddy.
+#
+# The Tencent Cloud VPS already runs sslh on :443 (SSH + HTTPS multiplexing)
+# and nginx on :8443 for TLS termination. Caddy cannot bind :80/:443 there
+# without evicting sslh and risking SSH lockout. This variant drops the Caddy
+# service and instead exposes the frontend on host port 9004, which the host's
+# existing nginx reverse-proxies (projfit.top -> localhost:9004).
+#
+# Usage on the VPS:
+#   docker compose -f docker-compose.vps.yml up -d --build
+#
+# .env must set APP_DOMAIN=projfit.top so NextAuth/OAuth URLs use the real host.
+
+services:
+  qdrant:
+    image: qdrant/qdrant:v1.12.5
+    container_name: talent-qdrant
+    expose:
+      - "6333"
+    volumes:
+      - qdrant_data:/qdrant/storage
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: talent-postgres
+    environment:
+      POSTGRES_USER: talent
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-talent}
+      POSTGRES_DB: talent
+    expose:
+      - "5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U talent -d talent"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+
+  redis:
+    image: redis:7-alpine
+    container_name: talent-redis
+    expose:
+      - "6379"
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 64M
+
+  backend:
+    build: ./backend
+    container_name: talent-backend
+    # No public port — reached only by the frontend over the internal network.
+    expose:
+      - "8000"
+    env_file:
+      - .env
+    environment:
+      POSTGRES_DSN: postgresql+asyncpg://talent:${POSTGRES_PASSWORD:-talent}@postgres:5432/talent
+      REDIS_URL: redis://redis:6379/0
+      QDRANT_URL: http://qdrant:6333
+      HF_HUB_OFFLINE: "1"
+      EMBED_MODEL: BAAI/bge-small-zh-v1.5
+      EMBED_DEVICE: cpu
+      HF_HOME: /app/.cache/huggingface
+    volumes:
+      - hf_cache:/app/.cache/huggingface
+    depends_on:
+      postgres:
+        condition: service_healthy
+      qdrant:
+        condition: service_started
+      redis:
+        condition: service_started
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 1200M
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        NEXT_PUBLIC_API_BASE: https://${APP_DOMAIN}
+    container_name: talent-frontend
+    # Exposed to the host so the host's nginx can reverse-proxy to it.
+    ports:
+      - "127.0.0.1:9004:3000"
+    environment:
+      NEXTAUTH_URL: https://${APP_DOMAIN}
+      AUTH_SECRET: ${AUTH_SECRET}
+      AUTH_GITHUB_ID: ${AUTH_GITHUB_ID}
+      AUTH_GITHUB_SECRET: ${AUTH_GITHUB_SECRET}
+      NEXT_PUBLIC_API_BASE: https://${APP_DOMAIN}
+      INTERNAL_API_BASE: http://talent-backend:8000
+      AUTH_TRUST_HOST: "true"
+    depends_on:
+      - backend
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 200M
+
+volumes:
+  qdrant_data:
+  postgres_data:
+  redis_data:
+  hf_cache:
