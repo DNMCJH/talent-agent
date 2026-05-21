@@ -95,7 +95,11 @@ services:
     build:
       context: ./frontend
       args:
+        # next.config.mjs rewrites() runs at BUILD time — INTERNAL_API_BASE must
+        # be a build arg, not just a runtime env var, or the /api/backend/*
+        # rewrite target bakes in as localhost:8000 and 404s in the container.
         NEXT_PUBLIC_API_BASE: https://${APP_DOMAIN}
+        INTERNAL_API_BASE: http://talent-backend:8000
     container_name: talent-frontend
     # Exposed to the host so the host's nginx can reverse-proxy to it.
     ports:
