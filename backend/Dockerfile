@@ -14,14 +14,16 @@ WORKDIR /app
 RUN uv pip install --system --index-url https://download.pytorch.org/whl/cpu torch==2.4.1+cpu
 
 COPY pyproject.toml ./
-# Install runtime deps only (no build of this package — app/ is mounted/copied below)
-RUN uv pip install --system \
-    "fastapi>=0.115.0" "uvicorn[standard]>=0.32.0" "httpx>=0.27.0" "pyjwt>=2.9.0" \
-    "sqlalchemy[asyncio]>=2.0.35" "asyncpg>=0.30.0" "alembic>=1.13.0" "redis>=5.1.0" \
-    "qdrant-client>=1.12.0" "sentence-transformers>=3.0.0,<4.0.0" "transformers>=4.38.0,<5.0.0" \
-    "openai>=1.50.0" "pydantic>=2.9.0" "pydantic-settings>=2.5.0" "gitpython>=3.1.40" \
-    "email-validator>=2.0.0" \
-    "python-multipart>=0.0.9" "pymupdf>=1.24.0" "python-docx>=1.1.0"
+# Install runtime deps from pyproject.toml — single source of truth, so the
+# image cannot drift from the declared dependency set. The package itself is
+# not built (tool.uv package = false); app/ is copied below.
+RUN uv pip install --system -r pyproject.toml
+
+# Bake the embedding model into the image so startup works with HF_HUB_OFFLINE=1.
+# An empty hf_cache named volume is seeded from this path on first creation, so
+# the model survives the volume mount. Must match EMBED_MODEL in .env.
+ENV HF_HOME=/app/.cache/huggingface
+RUN python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('BAAI/bge-small-zh-v1.5')"
 
 COPY app ./app
 COPY alembic.ini ./

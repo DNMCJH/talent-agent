@@ -50,8 +50,9 @@ services:
   backend:
     build: ./backend
     container_name: talent-backend
-    ports:
-      - "9005:8000"
+    # No public port — reached only by the frontend over the internal network.
+    expose:
+      - "8000"
     env_file:
       - .env
     environment:
@@ -81,16 +82,17 @@ services:
     build:
       context: ./frontend
       args:
-        NEXT_PUBLIC_API_BASE: http://43.128.24.23:9005
+        NEXT_PUBLIC_API_BASE: https://${APP_DOMAIN}
     container_name: talent-frontend
-    ports:
-      - "9004:3000"
+    # No public port — only Caddy reaches it (over the internal network).
+    expose:
+      - "3000"
     environment:
-      NEXTAUTH_URL: http://43.128.24.23:9004
+      NEXTAUTH_URL: https://${APP_DOMAIN}
       AUTH_SECRET: ${AUTH_SECRET}
       AUTH_GITHUB_ID: ${AUTH_GITHUB_ID}
       AUTH_GITHUB_SECRET: ${AUTH_GITHUB_SECRET}
-      NEXT_PUBLIC_API_BASE: http://43.128.24.23:9005
+      NEXT_PUBLIC_API_BASE: https://${APP_DOMAIN}
       INTERNAL_API_BASE: http://talent-backend:8000
       AUTH_TRUST_HOST: "true"
     depends_on:
@@ -101,8 +103,30 @@ services:
         limits:
           memory: 200M
 
+  caddy:
+    image: caddy:2-alpine
+    container_name: talent-caddy
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      APP_DOMAIN: ${APP_DOMAIN}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - frontend
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 64M
+
 volumes:
   qdrant_data:
   postgres_data:
   redis_data:
   hf_cache:
+  caddy_data:
+  caddy_config:

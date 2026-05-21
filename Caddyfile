@@ -1,0 +1,12 @@
+# Caddy reverse proxy — terminates TLS and forwards to the Next.js frontend.
+# Caddy automatically obtains and renews a Let's Encrypt certificate for
+# $APP_DOMAIN, so all browser traffic (JWTs, SSE tokens, JD text, interview
+# answers) travels over HTTPS instead of plaintext HTTP.
+#
+# The frontend proxies /api/backend/* to the backend internally, so Caddy only
+# needs to know about the frontend.
+
+{$APP_DOMAIN} {
+	encode gzip
+	reverse_proxy frontend:3000
+}
