@@ -230,7 +230,9 @@ async def start_interview(
 def _state_dump(
     state: InterviewState, *, parsed: ParsedJD | None = None, extra: dict[str, Any] | None = None
 ) -> dict[str, Any]:
-    payload = state.model_dump()
+    # History is persisted in the interview_turns table; the JSON column keeps
+    # only metadata so it cannot grow unbounded.
+    payload = state.model_dump(exclude={"history"})
     if parsed is not None:
         payload["_parsed_jd"] = parsed.model_dump()
     if extra:
@@ -238,11 +240,23 @@ def _state_dump(
     return payload
 
 
-def _load_state(row: InterviewSessionORM) -> tuple[InterviewState, ParsedJD | None, dict[str, Any]]:
+async def _load_state(
+    row: InterviewSessionORM, session: AsyncSession
+) -> tuple[InterviewState, ParsedJD | None, dict[str, Any]]:
     raw = dict(row.state)
     parsed_data = raw.pop("_parsed_jd", None)
     extra = raw.pop("_extra", {})
+    # Legacy rows may still carry `history` inline — model_validate accepts it as
+    # a fallback; turns from interview_turns take precedence when present.
     state = InterviewState.model_validate(raw)
+    turns = await session.execute(
+        select(InterviewTurn)
+        .where(InterviewTurn.session_id == row.id)
+        .order_by(InterviewTurn.idx)
+    )
+    turn_rows = turns.scalars().all()
+    if turn_rows:
+        state.history = [ChatTurn(role=t.role, content=t.content) for t in turn_rows]
     parsed = ParsedJD.model_validate(parsed_data) if parsed_data else None
     return state, parsed, extra
 
@@ -274,7 +288,7 @@ async def take_turn(
     if row is None or row.user_id != user_id:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "interview session not found")
 
-    state, parsed, extra = _load_state(row)
+    state, parsed, extra = await _load_state(row, session)
     interview_type = extra.get("interview_type", "targeted")
     stored_project_ids = extra.get("project_ids", [])
 
@@ -474,10 +488,30 @@ async def start_interview_stream(
     mode: str,
     raw_jd: str,
     language: str,
+    resume_context: str = "",
+) -> AsyncIterator[dict[str, Any]]:
+    """Streaming version of start_interview. Yields delta + final done event.
+
+    Opens its own DB session: the request-scoped session injected by FastAPI is
+    already closed by the time a StreamingResponse generator runs.
+    """
+    async with _get_sessionmaker()() as session:
+        async for event in _start_interview_stream_impl(
+            user_id, project_ids, interview_type, mode, raw_jd, language, session, resume_context
+        ):
+            yield event
+
+
+async def _start_interview_stream_impl(
+    user_id: int,
+    project_ids: list[int],
+    interview_type: str,
+    mode: str,
+    raw_jd: str,
+    language: str,
     session: AsyncSession,
     resume_context: str = "",
 ) -> AsyncIterator[dict[str, Any]]:
-    """Streaming version of start_interview. Yields delta + final done event."""
     is_comprehensive = interview_type == "comprehensive"
 
     if is_comprehensive:
@@ -584,16 +618,29 @@ async def take_turn_stream(
     user_id: int,
     session_id: str,
     candidate_message: str,
+) -> AsyncIterator[dict[str, Any]]:
+    """Streaming version of take_turn. Opens its own DB session — see
+    start_interview_stream for why the injected session cannot be used here."""
+    async with _get_sessionmaker()() as session:
+        async for event in _take_turn_stream_impl(
+            user_id, session_id, candidate_message, session
+        ):
+            yield event
+
+
+async def _take_turn_stream_impl(
+    user_id: int,
+    session_id: str,
+    candidate_message: str,
     session: AsyncSession,
 ) -> AsyncIterator[dict[str, Any]]:
-    """Streaming version of take_turn. Critique runs concurrently with next-question
-    streaming so the user sees the next question immediately; critique surfaces as
-    the final event."""
+    """Critique runs concurrently with next-question streaming so the user sees the
+    next question immediately; critique surfaces as the final event."""
     row = await session.get(InterviewSessionORM, session_id)
     if row is None or row.user_id != user_id:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "interview session not found")
 
-    state, parsed, extra = _load_state(row)
+    state, parsed, extra = await _load_state(row, session)
     interview_type = extra.get("interview_type", "targeted")
     stored_project_ids = extra.get("project_ids", [])
     is_comprehensive = interview_type == "comprehensive"

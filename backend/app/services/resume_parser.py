@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
+import asyncio
 import io
 import json
-from typing import Any
 
 from pydantic import BaseModel
 
@@ -41,7 +41,7 @@ def extract_text_from_docx(content: bytes) -> str:
     return "\n".join(paragraphs)
 
 
-_PARSE_PROMPT = """You are a resume parser. Extract structured information from the following resume text.
+_PARSE_SYSTEM = """You are a resume parser. Extract structured information from the resume text the user provides.
 
 Return a JSON object with these fields:
 - name: candidate's full name
@@ -52,21 +52,18 @@ Return a JSON object with these fields:
 - skills: array of skill strings
 - projects: array of objects with {name, description, tech_stack, highlights}
 
-Resume text:
----
-{text}
----
-
 Return ONLY valid JSON, no markdown fences."""
 
 
 async def parse_resume(content: bytes, filename: str) -> ParsedResume:
     ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
 
+    # PDF/DOCX extraction is synchronous CPU/IO — offload so a large file does
+    # not block the event loop (production runs a single uvicorn worker).
     if ext == "pdf":
-        raw_text = extract_text_from_pdf(content)
+        raw_text = await asyncio.to_thread(extract_text_from_pdf, content)
     elif ext in ("docx", "doc"):
-        raw_text = extract_text_from_docx(content)
+        raw_text = await asyncio.to_thread(extract_text_from_docx, content)
     else:
         raw_text = content.decode("utf-8", errors="replace")
 
@@ -74,9 +71,7 @@ async def parse_resume(content: bytes, filename: str) -> ParsedResume:
         return ParsedResume(raw_text="(empty document)")
 
     truncated = raw_text[:6000]
-    prompt = _PARSE_PROMPT.format(text=truncated)
-
-    response = await call_llm(prompt)
+    response = await call_llm(_PARSE_SYSTEM, truncated)
 
     try:
         data = json.loads(response)

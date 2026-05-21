@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo } from "react";
 import { useSession } from "next-auth/react";
 import { useAuth } from "@/lib/auth-context";
 
@@ -23,10 +24,11 @@ export async function apiFetch<T>(
 
   let signal = init.signal;
   let controller: AbortController | undefined;
+  let timer: ReturnType<typeof setTimeout> | undefined;
   if (timeoutMs && !signal) {
     controller = new AbortController();
     signal = controller.signal;
-    setTimeout(() => controller!.abort(), timeoutMs);
+    timer = setTimeout(() => controller!.abort(), timeoutMs);
   }
 
   let res: Response;
@@ -37,6 +39,9 @@ export async function apiFetch<T>(
       throw new ApiError(408, "请求超时，AI 响应较慢，请稍后重试");
     }
     throw new ApiError(0, "网络错误，请检查连接后重试");
+  } finally {
+    // Clear the timeout so a completed request does not leave a pending abort.
+    if (timer) clearTimeout(timer);
   }
 
   if (!res.ok) {
@@ -58,7 +63,10 @@ export function useApi() {
   const { data: session } = useSession();
   const { token: emailToken } = useAuth();
   const token = emailToken || session?.backendJwt;
-  return {
+  // Memoize on `token` so the returned object is stable across renders —
+  // otherwise consumers that put `api` in a useEffect dep array re-fire on
+  // every parent render (e.g. the email-verify banner re-GETting /auth/me).
+  return useMemo(() => ({
     token,
     get: <T,>(p: string) => apiFetch<T>(p, token ?? undefined),
     post: <T,>(p: string, body: unknown, timeoutMs?: number) =>
@@ -96,5 +104,5 @@ export function useApi() {
       }
       return res.json() as Promise<T>;
     },
-  };
+  }), [token]);
 }

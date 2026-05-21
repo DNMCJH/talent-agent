@@ -70,6 +70,32 @@ async def fetch_github_user(access_token: str) -> dict[str, Any]:
     return resp.json()
 
 
+async def verify_github_token(access_token: str) -> dict[str, Any]:
+    """Validate that `access_token` was issued for THIS OAuth app and return the
+    associated GitHub user profile.
+
+    Uses GitHub's `POST /applications/{client_id}/token` check endpoint, which is
+    authenticated with client_id:client_secret. A token minted for a different
+    OAuth app — or a forged one — cannot pass this check, so the returned profile
+    can be trusted as the caller's real identity.
+    """
+    if not settings.github_client_id or not settings.github_client_secret:
+        raise OAuthError("github oauth not configured")
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        resp = await client.post(
+            f"https://api.github.com/applications/{settings.github_client_id}/token",
+            auth=(settings.github_client_id, settings.github_client_secret),
+            json={"access_token": access_token},
+            headers={"Accept": "application/vnd.github+json"},
+        )
+    if resp.status_code != 200:
+        raise OAuthError(f"github token check failed ({resp.status_code})")
+    user = resp.json().get("user")
+    if not user:
+        raise OAuthError("github token check returned no user")
+    return user
+
+
 def issue_jwt(user_id: int) -> str:
     payload = {
         "sub": str(user_id),

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, EmailStr
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -16,15 +16,21 @@ from app.core.auth import (
     issue_jwt,
     issue_password_reset_token,
     issue_stream_token,
+    verify_github_token,
     verify_password,
 )
 from app.core.config import settings
 from app.core.db import get_session
 from app.core.deps import get_current_user
+from app.core.rate_limit import enforce_rate
 from app.core.mail import build_password_reset_email, build_verification_email, send_email
 from app.models.user import User
 
 router = APIRouter()
+
+
+def _client_ip(request: Request) -> str:
+    return request.client.host if request.client else "unknown"
 
 
 class GitHubCodeIn(BaseModel):
@@ -101,10 +107,14 @@ async def login_with_github_token(
     body: GitHubTokenIn,
     session: AsyncSession = Depends(get_session),
 ) -> TokenOut:
-    """Frontend (NextAuth) already exchanged code for access_token. Trust it,
-    fetch the GitHub profile, upsert user, return our JWT."""
+    """Frontend (NextAuth) already exchanged code for access_token. Verify the
+    token belongs to this OAuth app, then upsert user and return our JWT.
+
+    The token MUST be validated against GitHub's app-authenticated check endpoint
+    — a raw /user fetch would accept any GitHub token, including one minted for a
+    different app, letting an attacker impersonate the corresponding user."""
     try:
-        profile = await fetch_github_user(body.access_token)
+        profile = await verify_github_token(body.access_token)
     except OAuthError as exc:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
 
@@ -156,8 +166,13 @@ async def _send_verification(user: User) -> bool:
 @router.post("/register", response_model=TokenOut)
 async def register(
     body: RegisterIn,
+    request: Request,
     session: AsyncSession = Depends(get_session),
 ) -> TokenOut:
+    await enforce_rate(
+        f"{body.email}:{_client_ip(request)}", "register",
+        max_requests=5, window_seconds=3600,
+    )
     result = await session.execute(select(User).where(User.email == body.email))
     if result.scalar_one_or_none() is not None:
         raise HTTPException(status.HTTP_409_CONFLICT, "email already registered")
@@ -178,6 +193,7 @@ async def register(
 
 @router.post("/resend-verification")
 async def resend_verification(user: User = Depends(get_current_user)) -> dict[str, str]:
+    await enforce_rate(user.id, "resend_verify", max_requests=3, window_seconds=600)
     if user.email_verified:
         return {"status": "already_verified"}
     if not user.email:
@@ -228,11 +244,16 @@ class ForgotPasswordIn(BaseModel):
 @router.post("/forgot-password")
 async def forgot_password(
     body: ForgotPasswordIn,
+    request: Request,
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, str]:
     """Always returns 'ok' to avoid leaking which emails are registered.
     If the user exists and has a password (i.e. not pure GitHub OAuth),
     send a reset link by email."""
+    await enforce_rate(
+        f"{body.email}:{_client_ip(request)}", "forgot_pw",
+        max_requests=3, window_seconds=3600,
+    )
     result = await session.execute(select(User).where(User.email == body.email))
     user = result.scalar_one_or_none()
     if user is not None and user.password_hash is not None and user.email:
