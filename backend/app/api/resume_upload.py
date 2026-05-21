@@ -2,10 +2,9 @@
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, status
 from pydantic import BaseModel
-from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.db import get_session
 from app.core.deps import get_current_user
+from app.core.rate_limit import enforce_rate
 from app.models.user import User
 from app.services.resume_parser import ParsedResume, parse_resume
 
@@ -24,8 +23,9 @@ class ResumeParseOut(BaseModel):
 async def upload_and_parse_resume(
     file: UploadFile,
     user: User = Depends(get_current_user),
-    session: AsyncSession = Depends(get_session),
 ) -> ResumeParseOut:
+    # Each call triggers an LLM request — limit like other LLM endpoints.
+    await enforce_rate(user.id, "llm", max_requests=10, window_seconds=60)
     if not file.filename:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "no file provided")
 

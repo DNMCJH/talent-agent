@@ -1,3 +1,5 @@
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, status
 from pydantic import BaseModel
 from sqlalchemy import select
@@ -7,6 +9,7 @@ import httpx
 from app.core.config import settings
 from app.core.db import get_session
 from app.core.deps import get_current_user
+from app.core.rate_limit import enforce_rate
 from app.models.project import Project
 from app.models.user import User
 from app.schemas.agent_models import ProjectDoc
@@ -16,6 +19,10 @@ from app.services.github_indexer import parse_github_url, scan_github_repo
 from app.services.local_project_parser import parse_uploaded_project
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
+
+# Per-user limit for import endpoints — each does GitHub I/O and/or embedding.
+_IMPORT_RATE = dict(max_requests=20, window_seconds=60)
 
 
 class ProjectOut(BaseModel):
@@ -53,6 +60,7 @@ async def import_github(
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> ProjectOut:
+    await enforce_rate(user.id, "import", **_IMPORT_RATE)
     try:
         owner, repo = parse_github_url(body.github_url)
     except ValueError as e:
@@ -122,7 +130,12 @@ async def delete_project(
     try:
         await vector_store.delete_project(user_id=user.id, project_id=project.id)
     except Exception:
-        pass
+        # Postgres row still gets removed; log so the orphaned vector can be
+        # reconciled instead of silently lingering in match results.
+        logger.error(
+            "qdrant delete failed for project %s (user %s) — vector orphaned",
+            project.id, user.id, exc_info=True,
+        )
     await session.delete(project)
     await session.commit()
 
@@ -217,6 +230,7 @@ async def import_upload(
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> ProjectOut:
+    await enforce_rate(user.id, "import", **_IMPORT_RATE)
     if not file.filename:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "no file provided")
 
@@ -264,6 +278,7 @@ async def import_manual(
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> ProjectOut:
+    await enforce_rate(user.id, "import", **_IMPORT_RATE)
     name = body.name.strip()
     if not name:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "project name is required")
@@ -314,6 +329,7 @@ async def import_from_resume(
 ) -> ImportFromResumeOut:
     """Bulk-create Project rows from a parsed resume's project list. Each becomes a
     `source='manual'` project so the matcher and interviewer can use them like any other."""
+    await enforce_rate(user.id, "import", **_IMPORT_RATE)
     imported: list[ProjectOut] = []
     skipped: list[dict[str, str]] = []
 
@@ -376,6 +392,10 @@ async def import_from_resume(
             project.qdrant_point_id = point_id
             imported.append(ProjectOut.model_validate(project))
         except Exception:
+            # Drop the flushed row — committing it would leave a project with
+            # qdrant_point_id=None that match search can never surface.
+            logger.error("resume import upsert failed for %r", doc.name, exc_info=True)
+            await session.delete(project)
             skipped.append({"name": doc.name, "reason": "embed/upsert failed"})
 
     await session.commit()

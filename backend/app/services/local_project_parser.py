@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import asyncio
 import io
 import os
 import zipfile
 from collections import Counter
+from typing import Any
 
 from app.core.llm import call_llm
 from app.schemas.agent_models import ProjectDoc
@@ -40,7 +42,12 @@ _MAX_UNCOMPRESSED_SIZE = 200 * 1024 * 1024  # 200 MB
 _MAX_FILE_COUNT = 5000
 
 
-async def parse_uploaded_project(content: bytes, filename: str) -> ProjectDoc:
+def _scan_zip(content: bytes, filename: str) -> dict[str, Any]:
+    """Synchronous zip extraction + static analysis.
+
+    Run via asyncio.to_thread — reading a large archive would otherwise block
+    the event loop for the whole worker.
+    """
     if not zipfile.is_zipfile(io.BytesIO(content)):
         raise ValueError("Uploaded file is not a valid zip archive")
 
@@ -103,11 +110,28 @@ async def parse_uploaded_project(content: bytes, filename: str) -> ProjectDoc:
 
     project_name = filename.rsplit(".", 1)[0] if "." in filename else filename
 
+    return {
+        "project_name": project_name,
+        "filename": filename,
+        "readme_text": readme_text,
+        "stack": stack,
+        "languages": languages,
+        "sample_files": sample_files,
+        "has_tests": has_tests,
+        "total_loc": total_loc,
+        "signals": signals,
+    }
+
+
+async def parse_uploaded_project(content: bytes, filename: str) -> ProjectDoc:
+    scan = await asyncio.to_thread(_scan_zip, content, filename)
+    signals: dict[str, bool] = scan["signals"]
+
     topics_raw = await call_llm(
         system="Extract up to 8 topic keywords for this project. Return only a comma-separated list.",
         user_message=(
-            f"Project: {project_name}\nLanguages: {list(languages)}\n"
-            f"Files: {sample_files[:8]}\nREADME excerpt:\n{readme_text[:2000]}"
+            f"Project: {scan['project_name']}\nLanguages: {list(scan['languages'])}\n"
+            f"Files: {scan['sample_files'][:8]}\nREADME excerpt:\n{scan['readme_text'][:2000]}"
         ),
         max_tokens=120,
     )
@@ -116,15 +140,15 @@ async def parse_uploaded_project(content: bytes, filename: str) -> ProjectDoc:
     deployment_signal = bool(signals.get("dockerfile") or signals.get("docker_compose"))
 
     return ProjectDoc(
-        name=project_name,
+        name=scan["project_name"],
         path=f"upload://{filename}",
-        readme=readme_text,
-        stack=stack,
-        languages=languages,
+        readme=scan["readme_text"],
+        stack=scan["stack"],
+        languages=scan["languages"],
         topics=topics,
         has_dockerfile=bool(signals.get("dockerfile")),
-        has_tests=has_tests,
+        has_tests=scan["has_tests"],
         deployment_signal=deployment_signal,
-        complexity_loc=total_loc,
-        sample_files=sample_files[:10],
+        complexity_loc=scan["total_loc"],
+        sample_files=scan["sample_files"][:10],
     )

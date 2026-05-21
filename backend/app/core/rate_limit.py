@@ -18,9 +18,11 @@ def _pool() -> redis.Redis:
     return redis.from_url(settings.redis_url, decode_responses=True)
 
 
-async def _check_rate(user_id: int, action: str, max_requests: int, window_seconds: int) -> None:
+async def _check_rate(
+    identifier: int | str, action: str, max_requests: int, window_seconds: int
+) -> None:
     r = _pool()
-    key = f"rl:{action}:{user_id}"
+    key = f"rl:{action}:{identifier}"
     now = time.time()
     pipe = r.pipeline()
     pipe.zremrangebyscore(key, 0, now - window_seconds)
@@ -45,3 +47,12 @@ async def rate_limit_llm_sse(user: User = Depends(get_current_user_sse)) -> User
     """Same rate limit as rate_limit_llm but auth via SSE-compatible token source."""
     await _check_rate(user.id, "llm", max_requests=10, window_seconds=60)
     return user
+
+
+async def enforce_rate(
+    identifier: int | str, action: str, *, max_requests: int, window_seconds: int
+) -> None:
+    """Rate-limit an arbitrary identifier (email, IP, user id). For endpoints that
+    cannot use the dependency-based limiters above — e.g. unauthenticated routes
+    that must key off the request body or client IP."""
+    await _check_rate(identifier, action, max_requests, window_seconds)
