@@ -8,28 +8,36 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     GitHub({
       clientId: process.env.AUTH_GITHUB_ID,
       clientSecret: process.env.AUTH_GITHUB_SECRET,
-      authorization: { params: { scope: "read:user user:email repo" } },
+      // public_repo only — the app reads repo metadata for matching and never
+      // needs write access or private-repo contents. Avoids handing the browser
+      // a token with full private read/write scope.
+      authorization: { params: { scope: "read:user user:email public_repo" } },
     }),
   ],
   callbacks: {
     async jwt({ token, account }) {
       if (account?.access_token) {
         token.githubAccessToken = account.access_token;
+        // The backend JWT is required for every API call. If this exchange
+        // fails, fail the sign-in outright — otherwise the user appears logged
+        // in but every request 401s until they sign in again.
+        let res: Response;
         try {
-          const res = await fetch(`${API_BASE}/auth/github-token`, {
+          res = await fetch(`${API_BASE}/auth/github-token`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ access_token: account.access_token }),
           });
-          if (res.ok) {
-            const data = await res.json();
-            token.backendJwt = data.access_token;
-            token.userId = data.user_id;
-            token.githubLogin = data.github_login;
-          }
         } catch {
-          // network error
+          throw new Error("Backend unreachable during sign-in");
         }
+        if (!res.ok) {
+          throw new Error(`Backend rejected GitHub sign-in (${res.status})`);
+        }
+        const data = await res.json();
+        token.backendJwt = data.access_token;
+        token.userId = data.user_id;
+        token.githubLogin = data.github_login;
       }
       return token;
     },
