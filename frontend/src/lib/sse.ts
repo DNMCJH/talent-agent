@@ -14,28 +14,23 @@ type StreamHandlers = {
   onNetworkError?: (err: Error) => void;
 };
 
-async function fetchStreamToken(sessionToken: string): Promise<string> {
-  const res = await fetch(`${API_BASE}/auth/stream-token`, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${sessionToken}` },
-  });
-  if (!res.ok) throw new Error(`stream-token failed: ${res.status}`);
-  const data = await res.json();
-  return data.token;
-}
-
 /**
- * Subscribe to a backend SSE endpoint. Returns a cleanup function that closes
- * the connection — callers MUST invoke it (e.g. on unmount or session end) or
- * the EventSource leaks.
+ * Subscribe to a backend SSE stream.
  *
- * Auth: fetches a short-lived stream token, then appends it as `?token=`.
- * Caller is responsible for URL-encoding values in `params`.
+ * Two-step flow: the request body is POSTed to `preparePath` (normal Bearer
+ * auth), which stages it server-side and returns an opaque `stream_id` plus a
+ * short-lived stream token. The EventSource then connects to `streamPath` with
+ * only those two values in the URL — no JD text or interview answers ever land
+ * in access logs or browser history.
+ *
+ * Returns a cleanup function that closes the connection — callers MUST invoke
+ * it (e.g. on unmount or session end) or the EventSource leaks.
  */
 export function openSSE(
-  path: string,
+  preparePath: string,
+  streamPath: string,
   token: string,
-  params: Record<string, string>,
+  payload: unknown,
   handlers: StreamHandlers,
 ): () => void {
   let closed = false;
@@ -48,12 +43,28 @@ export function openSSE(
     handlers.onClose?.();
   };
 
-  fetchStreamToken(token)
-    .then((streamToken) => {
+  fetch(`${API_BASE}${preparePath}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+    body: JSON.stringify(payload),
+  })
+    .then(async (res) => {
+      if (!res.ok) {
+        let detail = `prepare failed: ${res.status}`;
+        try {
+          const body = await res.json();
+          if (typeof body?.detail === "string") detail = body.detail;
+        } catch {
+          // ignore
+        }
+        throw new Error(detail);
+      }
+      return res.json() as Promise<{ stream_id: string; stream_token: string }>;
+    })
+    .then(({ stream_id, stream_token }) => {
       if (closed) return;
-      const search = new URLSearchParams({ token: streamToken, ...params });
-      const url = `${API_BASE}${path}?${search.toString()}`;
-      es = new EventSource(url);
+      const search = new URLSearchParams({ token: stream_token, stream_id });
+      es = new EventSource(`${API_BASE}${streamPath}?${search.toString()}`);
 
       es.onmessage = (e) => {
         if (e.data === "[DONE]") {

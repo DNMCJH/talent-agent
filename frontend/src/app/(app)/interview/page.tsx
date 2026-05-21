@@ -117,10 +117,11 @@ export default function InterviewPage() {
 
     sseCloseRef.current?.();
     sseCloseRef.current = openSSE(
+      "/interview/start/stream/prepare",
       "/interview/start/stream",
       api.token,
       {
-        project_ids: interviewType === "targeted" ? selectedIds.join(",") : "",
+        project_ids: interviewType === "targeted" ? selectedIds : [],
         raw_jd: jd,
         mode: interviewType === "targeted" ? mode : "comprehensive",
         interview_type: interviewType,
@@ -167,6 +168,7 @@ export default function InterviewPage() {
 
     sseCloseRef.current?.();
     sseCloseRef.current = openSSE(
+      "/interview/turn/stream/prepare",
       "/interview/turn/stream",
       api.token,
       { session_id: sessionId, candidate_message: msg },

@@ -9,9 +9,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.services.jd_parser import parse_jd
 from app.services.resume_writer import rewrite_resume, rewrite_resume_multi_stream
-from app.core.db import get_session
-from app.core.rate_limit import rate_limit_llm, rate_limit_llm_sse
-from app.core.sse import SSE_HEADERS, wrap_sse
+from app.core.auth import issue_stream_token
+from app.core.db import _get_sessionmaker, get_session
+from app.core.deps import get_current_user_sse
+from app.core.rate_limit import rate_limit_llm
+from app.core.sse import SSE_HEADERS, pop_stream_payload, stage_stream_payload, wrap_sse
 from app.models.project import Project
 from app.models.user import User
 from app.schemas.agent_models import (
@@ -71,6 +73,21 @@ async def _multi_resume_events(
     project_ids: list[int],
     raw_jd: str,
     language: str,
+) -> AsyncIterator[dict[str, Any]]:
+    """Opens its own DB session: the request-scoped session is already closed by
+    the time this StreamingResponse generator runs."""
+    async with _get_sessionmaker()() as session:
+        async for event in _multi_resume_events_impl(
+            user_id, project_ids, raw_jd, language, session
+        ):
+            yield event
+
+
+async def _multi_resume_events_impl(
+    user_id: int,
+    project_ids: list[int],
+    raw_jd: str,
+    language: str,
     session: AsyncSession,
 ) -> AsyncIterator[dict[str, Any]]:
     if not project_ids:
@@ -107,22 +124,36 @@ async def _multi_resume_events(
         yield event
 
 
+class MultiResumeIn(BaseModel):
+    project_ids: list[int]
+    raw_jd: str
+    language: str = "en"
+
+
+@router.post("/multi/stream/prepare")
+async def generate_resume_multi_prepare(
+    body: MultiResumeIn,
+    user: User = Depends(rate_limit_llm),
+) -> dict:
+    """Stage the resume request server-side (see app.core.sse). The SSE GET then
+    carries only an opaque id, keeping the JD text out of the URL / access logs."""
+    stream_id = await stage_stream_payload(user.id, body.model_dump())
+    return {"stream_id": stream_id, "stream_token": issue_stream_token(user.id)}
+
+
 @router.get("/multi/stream")
 async def generate_resume_multi_stream(
-    project_ids: str = Query(...),  # comma-separated IDs
-    raw_jd: str = Query(...),
-    language: str = Query(default="en"),
-    user: User = Depends(rate_limit_llm_sse),
-    session: AsyncSession = Depends(get_session),
+    stream_id: str = Query(...),
+    user: User = Depends(get_current_user_sse),
 ) -> StreamingResponse:
-    ids = [int(x) for x in project_ids.split(",") if x.strip()]
+    payload = await pop_stream_payload(stream_id, user.id)
+    body = MultiResumeIn.model_validate(payload)
     return StreamingResponse(
         wrap_sse(_multi_resume_events(
             user_id=user.id,
-            project_ids=ids,
-            raw_jd=raw_jd,
-            language=language,
-            session=session,
+            project_ids=body.project_ids,
+            raw_jd=body.raw_jd,
+            language=body.language,
         )),
         media_type="text/event-stream",
         headers=SSE_HEADERS,

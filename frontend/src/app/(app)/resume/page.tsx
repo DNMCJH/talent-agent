@@ -139,10 +139,11 @@ export default function FullResumePage() {
 
     sseCloseRef.current?.();
     sseCloseRef.current = openSSE(
+      "/resume/multi/stream/prepare",
       "/resume/multi/stream",
       api.token,
       {
-        project_ids: selectedIds.join(","),
+        project_ids: selectedIds,
         raw_jd: jd,
         language: locale,
       },
