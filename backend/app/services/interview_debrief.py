@@ -83,4 +83,5 @@ async def generate_debrief(
         system=SYSTEM_PROMPT + lang_instr,
         user_message=context,
         output_schema=InterviewDebrief,
+        provider="claude",
     )

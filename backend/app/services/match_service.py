@@ -45,8 +45,7 @@ def _score(project: ProjectDoc, jd: ParsedJD):
     plus_total = len(jd.plus_skills)
     must_cov = len(matched_must) / must_total if must_total else 0.0
     plus_cov = len(matched_plus) / plus_total if plus_total else 0.0
-    weighted = must_cov if plus_total == 0 else 0.7 * must_cov + 0.3 * plus_cov
-    return must_cov, plus_cov, weighted, matched_must, missing_must, matched_plus
+    return must_cov, plus_cov, matched_must, missing_must, matched_plus
 
 
 def _cosine(a: list[float], b: list[float]) -> float:
@@ -144,7 +143,7 @@ async def match_for_user(
 
     matches: list[Match] = []
     for pid, project in candidate_docs.items():
-        must_cov, plus_cov, weighted, matched, missing, matched_plus = _score(project, parsed)
+        must_cov, plus_cov, matched, missing, matched_plus = _score(project, parsed)
 
         # Semantic rescue: skills that didn't string-match but are conceptually close.
         proj_vec = project_vecs.get(pid)
@@ -171,7 +170,15 @@ async def match_for_user(
             0.0,
         )
         # Skill coverage is the strongest signal; vector similarity is the tiebreaker.
-        blended = 0.5 * must_cov + 0.3 * plus_cov + 0.2 * (vector_score or 0.0)
+        # Weights: must 0.5 / plus 0.3 / vector 0.2. When the JD yielded no
+        # must_skills (jd_parser normally forces >=3, so this is a rare vague-JD
+        # fallback), must_cov is structurally 0 and would halve every score —
+        # redistribute its 0.5 weight onto plus and vector instead.
+        vec = vector_score or 0.0
+        if parsed.must_skills:
+            blended = 0.5 * must_cov + 0.3 * plus_cov + 0.2 * vec
+        else:
+            blended = 0.6 * plus_cov + 0.4 * vec
         if matched or matched_plus or (vector_score and vector_score > 0.5):
             bonus = [
                 s for s in project.stack

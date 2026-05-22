@@ -18,6 +18,7 @@ Rules:
 - If a skill appears in a "plus" or "strong plus" sentence, it goes in plus_skills even if it sounds important
 - You MUST extract at least 3 must_skills. If the JD is vague, infer the most likely required technical skills based on the role title and responsibilities.
 - For each skill, provide 1-3 aliases (common alternative names or abbreviations). E.g. "FastAPI" aliases: ["fastapi"], "Docker" aliases: ["docker", "containerization"], "PostgreSQL" aliases: ["postgres", "pg"]
+- Aliases MUST include cross-language equivalents where applicable — Chinese JDs often write skills in Chinese or mixed. E.g. "Machine Learning" aliases: ["机器学习", "ML"], "深度学习" aliases: ["Deep Learning", "DL"], "微服务" aliases: ["microservices"]. This lets a Chinese-named skill match an English-named project tag and vice versa.
 - Infer implicit signals: team style (startup vs enterprise), production vs research focus, seniority expectation
 - Generate 8-15 keywords optimized for vector search against project descriptions (focus on specific technical terms, not generic ones like "programming")
 - Detect language (en/zh) from the JD content

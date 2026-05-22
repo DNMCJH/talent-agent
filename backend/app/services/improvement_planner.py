@@ -53,4 +53,5 @@ README excerpt:
         system=SYSTEM_PROMPT + "\n" + lang_instr,
         user_message=context,
         output_schema=ImprovementPlan,
+        provider="claude",
     )

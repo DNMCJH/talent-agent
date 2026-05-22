@@ -2,10 +2,20 @@ from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
-    # LLM
+    # LLM — default provider (DeepSeek)
     llm_api_key: str = ""
     llm_base_url: str = "https://api.deepseek.com"
     llm_model: str = "deepseek-chat"
+
+    # LLM — relay providers (fucheers OpenAI-compatible relay)
+    relay_base_url: str = "https://www.fucheers.top/v1"
+    relay_claude_api_key: str = ""
+    relay_claude_model: str = "claude-sonnet-4-6"
+    relay_gpt_api_key: str = ""
+    relay_gpt_model: str = "gpt-4.1"
+
+    # Which provider to use by default: "deepseek" | "claude" | "gpt"
+    default_llm_provider: str = "deepseek"
 
     # Embedding
     embed_model: str = "BAAI/bge-small-zh-v1.5"

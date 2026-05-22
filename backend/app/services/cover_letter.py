@@ -52,4 +52,5 @@ Candidate's best-matching projects:
         system=SYSTEM_PROMPT + lang_instr,
         user_message=context,
         output_schema=CoverLetter,
+        provider="claude",
     )

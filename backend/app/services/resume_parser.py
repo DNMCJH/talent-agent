@@ -4,14 +4,19 @@ from __future__ import annotations
 
 import asyncio
 import io
-import json
 
 from pydantic import BaseModel
 
-from app.core.llm import call_llm
+from app.core.llm import call_llm_structured
 
 
-class ParsedResume(BaseModel):
+class _ResumeFields(BaseModel):
+    """LLM output schema — the fields the model actually extracts.
+
+    Excludes raw_text: that is the source document itself, filled by code,
+    not something the LLM should generate.
+    """
+
     name: str = ""
     email: str = ""
     phone: str = ""
@@ -19,6 +24,9 @@ class ParsedResume(BaseModel):
     experience: list[dict[str, str]] = []
     skills: list[str] = []
     projects: list[dict[str, str]] = []
+
+
+class ParsedResume(_ResumeFields):
     raw_text: str = ""
 
 
@@ -58,7 +66,7 @@ def extract_text_from_docx(content: bytes) -> str:
 
 _PARSE_SYSTEM = """You are a resume parser. Extract structured information from the resume text the user provides.
 
-Return a JSON object with these fields:
+Field guidance:
 - name: candidate's full name
 - email: email address (empty string if not found)
 - phone: phone number (empty string if not found)
@@ -67,24 +75,7 @@ Return a JSON object with these fields:
 - skills: array of skill strings
 - projects: array of objects with {name, description, tech_stack, highlights}
 
-Return ONLY valid JSON, no markdown fences."""
-
-_RETRY_HINT = "\n\nIMPORTANT: your previous reply was not valid JSON. Reply with ONLY a single JSON object, starting with { and ending with }."
-
-
-def _extract_json(response: str) -> dict:
-    """Parse an LLM reply into a dict, tolerating markdown fences. {} on failure."""
-    try:
-        return json.loads(response)
-    except json.JSONDecodeError:
-        pass
-    cleaned = response.strip()
-    if cleaned.startswith("```"):
-        cleaned = cleaned.split("\n", 1)[-1].rsplit("```", 1)[0]
-    try:
-        return json.loads(cleaned)
-    except json.JSONDecodeError:
-        return {}
+Use empty strings or empty arrays for anything the resume does not mention; do not invent details."""
 
 
 async def parse_resume(content: bytes, filename: str) -> ParsedResume:
@@ -105,22 +96,15 @@ async def parse_resume(content: bytes, filename: str) -> ParsedResume:
     # 12k chars comfortably covers a 2-3 page resume — including table-layout
     # ones whose cell joins inflate the character count.
     truncated = raw_text[:12000]
-    response = await call_llm(_PARSE_SYSTEM, truncated)
-    data = _extract_json(response)
 
-    # One retry: a malformed reply (empty dict) is usually a stray prose
-    # preamble, not a content problem — re-ask with a stricter instruction.
-    if not data:
-        response = await call_llm(_PARSE_SYSTEM + _RETRY_HINT, truncated)
-        data = _extract_json(response)
+    # Forced function-calling guarantees a schema-shaped reply — no prose
+    # preamble or markdown fence can break parsing the way the old hand-rolled
+    # JSON extraction did.
+    try:
+        fields = await call_llm_structured(_PARSE_SYSTEM, truncated, _ResumeFields, provider="claude")
+    except Exception:
+        # A failed parse must not lose the document — return raw_text so the
+        # caller can still store it and the user can edit fields manually.
+        return ParsedResume(raw_text=raw_text[:6000])
 
-    return ParsedResume(
-        name=data.get("name", ""),
-        email=data.get("email", ""),
-        phone=data.get("phone", ""),
-        education=data.get("education", []),
-        experience=data.get("experience", []),
-        skills=data.get("skills", []),
-        projects=data.get("projects", []),
-        raw_text=raw_text[:6000],
-    )
+    return ParsedResume(**fields.model_dump(), raw_text=raw_text[:6000])

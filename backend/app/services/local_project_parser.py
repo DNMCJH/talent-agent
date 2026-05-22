@@ -11,6 +11,7 @@ from typing import Any
 
 from app.core.llm import call_llm
 from app.schemas.agent_models import ProjectDoc
+from app.services.github_indexer import TOPIC_SYSTEM
 
 _LANG_EXTENSIONS: dict[str, str] = {
     ".py": "Python", ".js": "JavaScript", ".ts": "TypeScript",
@@ -143,18 +144,27 @@ async def parse_uploaded_project(content: bytes, filename: str) -> ProjectDoc:
 
     if scan["readme_text"]:
         context_label = "README excerpt"
-        context_body = scan["readme_text"][:2000]
+        context_body = scan["readme_text"][:3000]
     else:
         context_label = "Source excerpt"
-        context_body = scan["source_excerpt"][:2000]
+        context_body = scan["source_excerpt"][:3000]
+
+    signal_desc = ", ".join(k for k, v in {
+        "Docker": signals.get("dockerfile") or signals.get("docker_compose"),
+        "automated tests": scan["has_tests"],
+    }.items() if v) or "none detected"
 
     topics_raw = await call_llm(
-        system="Extract up to 8 topic keywords for this project. Return only a comma-separated list.",
+        system=TOPIC_SYSTEM,
         user_message=(
-            f"Project: {scan['project_name']}\nLanguages: {list(scan['languages'])}\n"
-            f"Files: {scan['sample_files'][:8]}\n{context_label}:\n{context_body}"
+            f"Project name: {scan['project_name']}\n"
+            f"Languages: {list(scan['languages'])}\n"
+            f"Engineering signals: {signal_desc}\n"
+            f"Files: {scan['sample_files'][:8]}\n"
+            f"{context_label}:\n{context_body}"
         ),
         max_tokens=120,
+        temperature=0.0,
     )
     topics = [t.strip() for t in topics_raw.split(",") if t.strip()][:8]
 

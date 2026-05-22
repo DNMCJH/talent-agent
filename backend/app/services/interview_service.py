@@ -319,6 +319,7 @@ async def take_turn(
         system=CRITIQUE_SYSTEM,
         user_message=f"Question: {last_question}\nAnswer: {candidate_message}",
         max_tokens=500,
+        provider="claude",
     )
     try:
         critique = json.loads(critique_raw)
@@ -595,6 +596,7 @@ async def _run_critique(
         system=CRITIQUE_SYSTEM,
         user_message=f"Question: {last_question}\nAnswer: {candidate_message}",
         max_tokens=500,
+        provider="claude",
     )
     try:
         critique = json.loads(critique_raw)

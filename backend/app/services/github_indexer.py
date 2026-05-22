@@ -16,6 +16,28 @@ from app.schemas.agent_models import ProjectDoc
 
 _GITHUB_API = "https://api.github.com"
 
+# Shared topic-tagging prompt (also used by local_project_parser).
+TOPIC_SYSTEM = """You tag software projects with the technical topics a recruiter would search for.
+
+Return ONLY a comma-separated list of up to 8 topics. No prose, no numbering.
+
+A good topic is one of:
+- a domain or problem area — "recommendation system", "real-time chat", "computer vision"
+- a framework, platform, or notable tool — "FastAPI", "React", "PostgreSQL", "Redis"
+- an architecture or engineering pattern — "microservices", "event-driven", "REST API", "CI/CD"
+
+Do NOT return:
+- bare programming languages (Python, Go, ...) — those are tracked separately
+- vague words — "software", "app", "code", "project", "backend", "tool"
+
+Use the engineering signals provided (Docker, CI/CD, etc.) as topics when present.
+Prefer specific over generic. If unsure, return fewer topics rather than padding.
+
+Example output: RAG, vector search, FastAPI, LLM, Docker, REST API"""
+
+# Backwards-compatible alias kept in case anything imports the lowercase name.
+_TOPIC_SYSTEM = TOPIC_SYSTEM
+
 _GITHUB_URL_RE = re.compile(
     r"^(?:https?://)?(?:www\.)?github\.com/([^/\s]+)/([^/\s#?]+?)(?:\.git)?/?(?:[#?].*)?$",
     re.IGNORECASE,
@@ -116,13 +138,24 @@ async def scan_github_repo(url: str, *, token: str | None = None) -> ProjectDoc:
     deployment_signal = signals.get("dockerfile") or signals.get("docker_compose") \
         or signals.get("gh_actions") or signals.get("k8s") or False
 
+    signal_desc = ", ".join(k for k, v in {
+        "Docker": signals.get("dockerfile") or signals.get("docker_compose"),
+        "CI/CD": signals.get("gh_actions"),
+        "Kubernetes": signals.get("k8s"),
+        "automated tests": signals.get("tests_dir"),
+    }.items() if v) or "none detected"
+
     topics_raw = await call_llm(
-        system="Extract up to 8 topic keywords for this project. Return only a comma-separated list.",
+        system=_TOPIC_SYSTEM,
         user_message=(
-            f"Project: {repo}\nLanguages: {list(languages)}\n"
-            f"Description: {meta.get('description') or ''}\nREADME excerpt:\n{readme[:2000]}"
+            f"Project name: {repo}\n"
+            f"Languages: {list(languages)}\n"
+            f"Engineering signals: {signal_desc}\n"
+            f"Description: {meta.get('description') or '(none)'}\n"
+            f"README excerpt:\n{readme[:3000]}"
         ),
         max_tokens=120,
+        temperature=0.0,
     )
     topics = [t.strip() for t in topics_raw.split(",") if t.strip()][:8]
     # GitHub-declared topics are often more reliable than LLM guesses for well-tagged repos.
