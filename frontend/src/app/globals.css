@@ -54,5 +54,12 @@
   }
   body {
     @apply bg-background text-foreground;
+    /* A very faint dot grid — graph-paper texture so empty space reads as
+       deliberate structure, not flat void. Content sits on opaque cards. */
+    background-image: radial-gradient(
+      hsl(var(--border)) 1px,
+      transparent 1px
+    );
+    background-size: 24px 24px;
   }
 }
