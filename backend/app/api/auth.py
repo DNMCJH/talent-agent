@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, EmailStr
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 import jwt
@@ -181,7 +182,14 @@ async def register(
 
     user = User(email=body.email, password_hash=hash_password(body.password), email_verified=False)
     session.add(user)
-    await session.commit()
+    try:
+        await session.commit()
+    except IntegrityError:
+        # Two concurrent registrations for the same email — the unique
+        # constraint on users.email rejects the loser. Surface a clean 409
+        # instead of a 500.
+        await session.rollback()
+        raise HTTPException(status.HTTP_409_CONFLICT, "email already registered")
     await session.refresh(user)
 
     # Fire verification email — best-effort. If RESEND_API_KEY is unset, send_email
@@ -226,8 +234,16 @@ async def verify_email(
 @router.post("/login", response_model=TokenOut)
 async def login(
     body: LoginIn,
+    request: Request,
     session: AsyncSession = Depends(get_session),
 ) -> TokenOut:
+    # Throttle password guessing — keyed on email+IP so one attacker IP can't
+    # brute-force a single account, and one account can't be locked out by
+    # spoofed traffic from many IPs.
+    await enforce_rate(
+        f"{body.email}:{_client_ip(request)}", "login",
+        max_requests=10, window_seconds=300,
+    )
     result = await session.execute(select(User).where(User.email == body.email))
     user = result.scalar_one_or_none()
     if user is None or user.password_hash is None:

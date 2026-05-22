@@ -1,4 +1,5 @@
 import logging
+import re
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, status
 from pydantic import BaseModel
@@ -162,18 +163,24 @@ async def list_github_user_repos(
     """Fetch repos for a GitHub username. With user OAuth token, private
     repos are included too; otherwise falls back to the server PAT and only
     public repos are returned."""
+    # Validate the username before interpolating it into the API path —
+    # GitHub usernames are alphanumeric + single hyphens, ≤39 chars. This
+    # rejects path-traversal and injection attempts in the URL.
+    username = body.username.strip()
+    if not re.fullmatch(r"[A-Za-z0-9](?:[A-Za-z0-9]|-(?=[A-Za-z0-9])){0,38}", username):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "invalid GitHub username")
     headers = {"Accept": "application/vnd.github+json"}
     tok = body.github_token or settings.github_token
     if tok:
         headers["Authorization"] = f"Bearer {tok}"
     async with httpx.AsyncClient(timeout=15.0) as client:
         resp = await client.get(
-            f"https://api.github.com/users/{body.username}/repos",
+            f"https://api.github.com/users/{username}/repos",
             params={"sort": "pushed", "per_page": 100, "type": "owner"},
             headers=headers,
         )
     if resp.status_code == 404:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, f"GitHub user '{body.username}' not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, f"GitHub user '{username}' not found")
     if resp.status_code != 200:
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, f"GitHub API error: {resp.status_code}")
     repos = resp.json()
