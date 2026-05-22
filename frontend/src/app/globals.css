@@ -62,6 +62,11 @@
     );
     background-size: 24px 24px;
   }
+  /* When the interactive dot canvas is active it owns the grid — drop the
+     static CSS dots so the two layers don't double up. */
+  html.cursor-dots body {
+    background-image: none;
+  }
 }
 
 @layer components {

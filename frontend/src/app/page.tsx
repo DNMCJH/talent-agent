@@ -5,7 +5,7 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { AppShell } from "@/components/app-shell";
 import { HomeWorkbench } from "@/components/home-workbench";
-import { CursorGlow } from "@/components/cursor-glow";
+import { CursorDots } from "@/components/cursor-dots";
 import { useI18n } from "@/i18n/context";
 import { useAuth } from "@/lib/auth-context";
 
@@ -46,7 +46,7 @@ export default function RootPage() {
 
   return (
     <div className="relative min-h-screen flex flex-col">
-      <CursorGlow />
+      <CursorDots />
       {/* Header — full-bleed border, content aligned to a 1200px column */}
       <header className="relative z-[1] border-b">
         <div className="mx-auto flex h-16 max-w-[1200px] items-center justify-between px-6">
