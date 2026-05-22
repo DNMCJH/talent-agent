@@ -6,10 +6,54 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useI18n } from "@/i18n/context";
 import { useAuth } from "@/lib/auth-context";
 import { Loader2, CheckCircle2 } from "lucide-react";
+
+/** Left brand panel — fills the other half of the viewport so the auth form
+ *  reads as one side of a composition, not a card adrift in white space. */
+function BrandPanel() {
+  const { t } = useI18n();
+  const points = [
+    t.landing.feature1Title,
+    t.landing.feature2Title,
+    t.landing.feature3Title,
+  ];
+  return (
+    <div className="hidden flex-col justify-between bg-foreground p-12 text-background lg:flex">
+      <div className="flex items-center gap-2.5">
+        <span className="grid h-6 w-6 place-items-center bg-background font-mono text-xs font-bold text-foreground">
+          TA
+        </span>
+        <span className="text-sm font-medium tracking-tight">Talent Agent</span>
+      </div>
+      <div>
+        <h2 className="max-w-sm text-3xl font-semibold leading-tight tracking-tight">
+          {t.landing.hero}
+        </h2>
+        <p className="mt-4 max-w-sm text-sm leading-relaxed text-background/60">
+          {t.landing.heroSub}
+        </p>
+        <div className="mt-10 border-t border-background/15">
+          {points.map((p, i) => (
+            <div
+              key={p}
+              className="flex items-center gap-4 border-b border-background/15 py-3.5"
+            >
+              <span className="font-mono text-xs text-background/50">
+                {String(i + 1).padStart(2, "0")}
+              </span>
+              <span className="text-sm">{p}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+      <span className="font-mono text-xs text-background/40">
+        Next.js · FastAPI · DeepSeek · Qdrant
+      </span>
+    </div>
+  );
+}
 
 export default function LoginPage() {
   const { status } = useSession();
@@ -52,34 +96,52 @@ export default function LoginPage() {
 
   if (sentEmail) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-muted/30 px-3 py-6">
-        <Card className="w-full max-w-sm sm:max-w-md">
-          <CardHeader className="text-center space-y-2">
-            <CheckCircle2 className="h-12 w-12 text-green-600 mx-auto" />
-            <CardTitle className="text-xl sm:text-2xl">{t.login.registerSentTitle}</CardTitle>
-            <CardDescription className="text-sm break-words">
+      <div className="grid min-h-screen lg:grid-cols-2">
+        <BrandPanel />
+        <div className="flex flex-col justify-center px-6 py-12 sm:px-12">
+          <div className="mx-auto w-full max-w-[360px]">
+            <CheckCircle2 className="h-10 w-10 text-foreground" />
+            <h1 className="mt-4 text-2xl font-semibold tracking-tight">
+              {t.login.registerSentTitle}
+            </h1>
+            <p className="mt-2 break-words text-sm leading-relaxed text-muted-foreground">
               {t.login.registerSentBody.replace("{email}", sentEmail)}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Button className="w-full" onClick={() => router.replace("/")}>
+            </p>
+            <Button
+              className="mt-6 h-11 w-full rounded-none"
+              onClick={() => router.replace("/")}
+            >
               {locale === "zh" ? "继续使用" : "Continue"}
             </Button>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-muted/30 px-3 py-6">
-      <Card className="w-full max-w-sm sm:max-w-md">
-        <CardHeader className="text-center space-y-1">
-          <CardTitle className="text-xl sm:text-2xl">{t.login.title}</CardTitle>
-          <CardDescription className="text-xs sm:text-sm">{t.login.subtitle}</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4 px-4 sm:px-6">
-          <form onSubmit={handleSubmit} className="space-y-3">
+    <div className="grid min-h-screen lg:grid-cols-2">
+      <BrandPanel />
+      <div className="flex flex-col justify-center px-6 py-12 sm:px-12">
+        <div className="mx-auto w-full max-w-[360px]">
+          {/* Logo — shown here only on mobile, where the brand panel is hidden */}
+          <div className="mb-10 flex items-center gap-2.5 lg:hidden">
+            <span className="grid h-6 w-6 place-items-center bg-foreground font-mono text-xs font-bold text-background">
+              TA
+            </span>
+            <span className="text-sm font-medium tracking-tight">
+              Talent Agent
+            </span>
+          </div>
+
+          <h1 className="text-2xl font-semibold tracking-tight">
+            {mode === "login" ? t.login.signIn : t.login.signUpBtn}
+          </h1>
+          <p className="mt-1.5 text-sm text-muted-foreground">
+            {t.login.subtitle}
+          </p>
+
+          <form onSubmit={handleSubmit} className="mt-8 space-y-3">
             <Input
               type="email"
               placeholder={t.login.emailLabel}
@@ -87,6 +149,7 @@ export default function LoginPage() {
               onChange={(e) => setEmail(e.target.value)}
               required
               autoComplete="email"
+              className="h-11 rounded-none"
             />
             <Input
               type="password"
@@ -96,64 +159,73 @@ export default function LoginPage() {
               required
               minLength={6}
               autoComplete={mode === "register" ? "new-password" : "current-password"}
+              className="h-11 rounded-none"
             />
             {error && (
-              <p className="text-xs sm:text-sm text-destructive break-words">{error}</p>
+              <p className="break-words text-sm text-destructive">{error}</p>
             )}
-            <Button className="w-full" type="submit" disabled={loading}>
+            <Button
+              className="h-11 w-full rounded-none"
+              type="submit"
+              disabled={loading}
+            >
               {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               {mode === "login" ? t.login.signInBtn : t.login.signUpBtn}
             </Button>
           </form>
 
-          <div className="flex items-center justify-between text-xs">
+          <div className="mt-4 flex items-center justify-between text-xs">
             <button
               type="button"
               onClick={() => setMode(mode === "login" ? "register" : "login")}
-              className="text-muted-foreground hover:text-foreground"
+              className="text-muted-foreground transition-colors hover:text-foreground"
             >
               {mode === "login" ? t.login.noAccount : t.login.hasAccount}
             </button>
             {mode === "login" && (
               <Link
                 href="/forgot-password"
-                className="text-muted-foreground hover:text-foreground"
+                className="text-muted-foreground transition-colors hover:text-foreground"
               >
                 {t.login.forgot}
               </Link>
             )}
           </div>
 
-          <div className="relative">
+          <div className="relative my-6">
             <div className="absolute inset-0 flex items-center">
               <span className="w-full border-t" />
             </div>
-            <div className="relative flex justify-center text-xs uppercase">
-              <span className="bg-background px-2 text-muted-foreground">{t.login.or}</span>
+            <div className="relative flex justify-center">
+              <span className="bg-background px-3 font-mono text-xs uppercase tracking-wider text-muted-foreground">
+                {t.login.or}
+              </span>
             </div>
           </div>
 
           <Button
             type="button"
             variant="outline"
-            className="w-full"
+            className="h-11 w-full rounded-none"
             onClick={() => signIn("github", { callbackUrl: "/" })}
           >
             {t.login.github}
           </Button>
-          <p className="text-xs text-center text-muted-foreground">{t.login.githubHint}</p>
+          <p className="mt-2 text-center text-xs text-muted-foreground">
+            {t.login.githubHint}
+          </p>
 
-          <div className="text-center">
+          <div className="mt-8 text-center">
             <button
               type="button"
               onClick={toggleLocale}
-              className="text-xs text-muted-foreground hover:text-foreground"
+              className="font-mono text-xs text-muted-foreground transition-colors hover:text-foreground"
             >
               {locale === "en" ? "中文" : "English"}
             </button>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     </div>
   );
 }
