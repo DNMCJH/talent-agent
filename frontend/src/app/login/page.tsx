@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useI18n } from "@/i18n/context";
 import { useAuth } from "@/lib/auth-context";
-import { Loader2, CheckCircle2 } from "lucide-react";
+import { Loader2, CheckCircle2, ArrowLeft } from "lucide-react";
 
 /** Left brand panel — fills the other half of the viewport so the auth form
  *  reads as one side of a composition, not a card adrift in white space. */
@@ -21,12 +21,15 @@ function BrandPanel() {
   ];
   return (
     <div className="hidden flex-col justify-between bg-foreground p-12 text-background lg:flex">
-      <div className="flex items-center gap-2.5">
+      <Link
+        href="/"
+        className="flex items-center gap-2.5 transition-opacity hover:opacity-80"
+      >
         <span className="grid h-6 w-6 place-items-center bg-background font-mono text-xs font-bold text-foreground">
           TA
         </span>
         <span className="text-sm font-medium tracking-tight">Talent Agent</span>
-      </div>
+      </Link>
       <div>
         <h2 className="max-w-sm text-3xl font-semibold leading-tight tracking-tight">
           {t.landing.hero}
@@ -124,15 +127,29 @@ export default function LoginPage() {
       <BrandPanel />
       <div className="flex flex-col justify-center px-6 py-12 sm:px-12">
         <div className="mx-auto w-full max-w-[360px]">
-          {/* Logo — shown here only on mobile, where the brand panel is hidden */}
-          <div className="mb-10 flex items-center gap-2.5 lg:hidden">
+          {/* Logo — shown here only on mobile, where the brand panel is
+              hidden. Links home so there is a way back from login. */}
+          <Link
+            href="/"
+            className="mb-10 flex items-center gap-2.5 transition-opacity hover:opacity-80 lg:hidden"
+          >
             <span className="grid h-6 w-6 place-items-center bg-foreground font-mono text-xs font-bold text-background">
               TA
             </span>
             <span className="text-sm font-medium tracking-tight">
               Talent Agent
             </span>
-          </div>
+          </Link>
+
+          {/* Explicit way back to the landing page — on desktop the brand
+              panel's logo also links home, but a labelled link is clearer. */}
+          <Link
+            href="/"
+            className="mb-8 hidden items-center gap-1 font-mono text-xs text-muted-foreground transition-colors hover:text-foreground lg:inline-flex"
+          >
+            <ArrowLeft className="h-3 w-3" />
+            {locale === "zh" ? "返回首页" : "Back to home"}
+          </Link>
 
           <h1 className="text-2xl font-semibold tracking-tight">
             {mode === "login" ? t.login.signIn : t.login.signUpBtn}
