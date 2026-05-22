@@ -98,6 +98,19 @@ def _scan_zip(content: bytes, filename: str) -> dict[str, Any]:
             if len(sample_files) < 10:
                 sample_files.append(name)
 
+    # No README — fall back to source excerpts so the LLM has something
+    # concrete to characterize the project from, instead of just a file list.
+    source_excerpt = ""
+    if not readme_text and sample_files:
+        chunks: list[str] = []
+        for name in sample_files[:5]:
+            try:
+                text = zf.read(name).decode("utf-8", errors="replace")
+            except Exception:
+                continue
+            chunks.append(f"# {name}\n{text[:1200]}")
+        source_excerpt = "\n\n".join(chunks)[:6000]
+
     total = sum(lang_bytes.values()) or 1
     languages = {lang: round(b / total, 3) for lang, b in lang_bytes.most_common(10)}
     stack = list(languages.keys())
@@ -114,6 +127,7 @@ def _scan_zip(content: bytes, filename: str) -> dict[str, Any]:
         "project_name": project_name,
         "filename": filename,
         "readme_text": readme_text,
+        "source_excerpt": source_excerpt,
         "stack": stack,
         "languages": languages,
         "sample_files": sample_files,
@@ -127,11 +141,18 @@ async def parse_uploaded_project(content: bytes, filename: str) -> ProjectDoc:
     scan = await asyncio.to_thread(_scan_zip, content, filename)
     signals: dict[str, bool] = scan["signals"]
 
+    if scan["readme_text"]:
+        context_label = "README excerpt"
+        context_body = scan["readme_text"][:2000]
+    else:
+        context_label = "Source excerpt"
+        context_body = scan["source_excerpt"][:2000]
+
     topics_raw = await call_llm(
         system="Extract up to 8 topic keywords for this project. Return only a comma-separated list.",
         user_message=(
             f"Project: {scan['project_name']}\nLanguages: {list(scan['languages'])}\n"
-            f"Files: {scan['sample_files'][:8]}\nREADME excerpt:\n{scan['readme_text'][:2000]}"
+            f"Files: {scan['sample_files'][:8]}\n{context_label}:\n{context_body}"
         ),
         max_tokens=120,
     )
