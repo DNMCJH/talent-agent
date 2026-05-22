@@ -377,6 +377,9 @@ export default function ProjectsPage() {
         </p>
       </div>
 
+      {/* PC: import actions on the left, project list on the right. */}
+      <div className="lg:grid lg:grid-cols-[minmax(0,380px)_minmax(0,1fr)] lg:gap-6 lg:items-start">
+      <div className="space-y-4 lg:sticky lg:top-20">
       <Card>
         <CardHeader>
           <CardTitle className="text-base">{t.projects.importTitle}</CardTitle>
@@ -526,8 +529,10 @@ export default function ProjectsPage() {
         </Card>
       )}
 
-      {/* Project list */}
-      <div className="space-y-2">
+      </div>
+
+      {/* Project list — right column */}
+      <div className="mt-6 space-y-2 lg:mt-0">
         <h2 className="text-sm font-medium text-muted-foreground">
           {t.projects.yourProjects}
         </h2>
@@ -574,6 +579,7 @@ export default function ProjectsPage() {
             </CardContent>
           </Card>
         ))}
+      </div>
       </div>
 
       <RepoBrowser
