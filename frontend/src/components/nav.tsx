@@ -31,22 +31,27 @@ export function Nav() {
   }
 
   return (
-    <header className="sticky top-0 z-10 bg-gradient-to-r from-zinc-900 via-zinc-800 to-zinc-900 text-white shadow-lg">
+    <header className="sticky top-0 z-10 border-b bg-background">
       <div className="container max-w-7xl mx-auto flex h-14 items-center justify-between px-4 sm:px-6">
-        <div className="flex items-center gap-4 sm:gap-10 min-w-0">
-          <Link href="/" className="text-lg sm:text-2xl font-bold tracking-tight shrink-0">
-            Talent Agent
+        <div className="flex items-center gap-4 sm:gap-8 min-w-0">
+          <Link href="/" className="flex items-center gap-2 shrink-0">
+            <span className="grid h-6 w-6 place-items-center bg-foreground text-background font-mono text-xs font-bold">
+              TA
+            </span>
+            <span className="hidden sm:inline text-sm font-medium tracking-tight">
+              Talent Agent
+            </span>
           </Link>
-          <nav className="flex gap-1 sm:gap-2 overflow-x-auto">
+          <nav className="flex gap-0.5 sm:gap-1 overflow-x-auto">
             {links.map((l) => (
               <Link
                 key={l.href}
                 href={l.href}
                 className={cn(
-                  "px-2 sm:px-4 py-1.5 rounded-md text-xs sm:text-[15px] whitespace-nowrap transition-colors",
+                  "px-2 sm:px-3 py-1.5 rounded-none text-xs sm:text-sm whitespace-nowrap transition-colors",
                   pathname?.startsWith(l.href)
-                    ? "bg-white/15 text-white font-semibold"
-                    : "text-zinc-300 hover:text-white hover:bg-white/10",
+                    ? "font-medium text-foreground"
+                    : "text-muted-foreground hover:text-foreground",
                 )}
               >
                 {l.label}
@@ -58,17 +63,19 @@ export function Nav() {
           <button
             type="button"
             onClick={toggleLocale}
-            className="px-2 py-1 rounded text-xs text-zinc-300 hover:text-white hover:bg-white/10 transition-colors"
+            className="px-2 py-1 font-mono text-xs text-muted-foreground hover:text-foreground transition-colors"
           >
             {locale === "en" ? "中文" : "EN"}
           </button>
           {session?.githubLogin && (
-            <span className="hidden sm:inline text-zinc-400">@{session.githubLogin}</span>
+            <span className="hidden sm:inline font-mono text-xs text-muted-foreground">
+              @{session.githubLogin}
+            </span>
           )}
           <button
             type="button"
             onClick={handleSignOut}
-            className="px-2 py-1 rounded text-xs sm:text-sm text-zinc-300 hover:text-white hover:bg-white/10 transition-colors"
+            className="px-2 py-1 text-xs sm:text-sm text-muted-foreground hover:text-foreground transition-colors"
           >
             {t.nav.signOut}
           </button>

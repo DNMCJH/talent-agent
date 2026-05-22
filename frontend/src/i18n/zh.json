@@ -67,7 +67,17 @@
     "resumeStack": "技术栈",
     "copy": "复制",
     "copied": "已复制！",
-    "close": "关闭"
+    "close": "关闭",
+    "download": "下载 DOCX",
+    "downloading": "生成中…",
+    "improvementPlan": "改进计划",
+    "planTitle": "项目改进计划",
+    "planEffort": "天",
+    "planGaps": "弥补",
+    "planDeliverables": "交付物",
+    "planHints": "如何上手",
+    "planImpact": "简历收益",
+    "planEmpty": "未生成改进任务。"
   },
   "interview": {
     "title": "面试",

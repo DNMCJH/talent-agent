@@ -67,7 +67,17 @@
     "resumeStack": "Tech Stack",
     "copy": "Copy",
     "copied": "Copied!",
-    "close": "Close"
+    "close": "Close",
+    "download": "Download DOCX",
+    "downloading": "Generating…",
+    "improvementPlan": "Improvement Plan",
+    "planTitle": "Project Improvement Plan",
+    "planEffort": "d",
+    "planGaps": "Closes",
+    "planDeliverables": "Deliverables",
+    "planHints": "How to start",
+    "planImpact": "Resume impact",
+    "planEmpty": "No improvement tasks generated."
   },
   "interview": {
     "title": "Interview",

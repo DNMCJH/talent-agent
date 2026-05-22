@@ -26,6 +26,14 @@ export default function LandingPage() {
     { title: t.landing.feature3Title, desc: t.landing.feature3Desc },
   ];
 
+  // A static, illustrative match result — shows what the product does
+  // instead of leaving the right fold as empty decoration.
+  const demoRows = [
+    { rank: "01", name: "rag-pipeline", score: 92 },
+    { rank: "02", name: "cv-detector", score: 74 },
+    { rank: "03", name: "data-dashboard", score: 58 },
+  ];
+
   return (
     <div className="min-h-screen flex flex-col">
       {/* Header — full-bleed border, content aligned to a 1200px column */}
@@ -87,7 +95,52 @@ export default function LandingPage() {
                 </span>
               </div>
             </div>
-            <div className="hidden lg:col-span-5 lg:block grid-lines" />
+            {/* Right fold — a static product demo, not decoration:
+                a mock JD-to-ranking result the way the match page renders it. */}
+            <div className="hidden lg:col-span-5 lg:flex lg:items-center lg:justify-center lg:p-12">
+              <div className="w-full max-w-sm border bg-background">
+                <div className="flex items-center justify-between border-b px-4 py-2.5">
+                  <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
+                    {locale === "en" ? "Match preview" : "匹配预览"}
+                  </span>
+                  <span className="font-mono text-[10px] text-muted-foreground">
+                    {locale === "en" ? "3 projects" : "3 个项目"}
+                  </span>
+                </div>
+                <div className="border-b px-4 py-3">
+                  <p className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+                    {locale === "en" ? "Target role" : "目标岗位"}
+                  </p>
+                  <p className="mt-1 text-sm font-medium tracking-tight">
+                    {locale === "en"
+                      ? "ML Engineer · Intern"
+                      : "机器学习工程师 · 实习"}
+                  </p>
+                </div>
+                {demoRows.map((r) => (
+                  <div
+                    key={r.rank}
+                    className="flex items-center gap-3 border-b px-4 py-3 last:border-b-0"
+                  >
+                    <span className="font-mono text-xs text-muted-foreground">
+                      {r.rank}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate font-mono text-xs">{r.name}</p>
+                      <div className="mt-1.5 h-1 w-full bg-muted">
+                        <div
+                          className="h-1 bg-foreground"
+                          style={{ width: `${r.score}%` }}
+                        />
+                      </div>
+                    </div>
+                    <span className="font-mono text-xs tabular-nums text-muted-foreground">
+                      {r.score}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
         </section>
 

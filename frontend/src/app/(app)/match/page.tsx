@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { useApi, ApiError } from "@/lib/api";
+import { useApi, ApiError, API_BASE } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -15,7 +15,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { Loader2, MessageSquare, FileText, Copy, Check } from "lucide-react";
+import { Loader2, MessageSquare, FileText, Copy, Check, Download, Wrench } from "lucide-react";
 import { useI18n } from "@/i18n/context";
 import { copyToClipboard } from "@/lib/clipboard";
 
@@ -45,6 +45,15 @@ type ResumeData = {
   star_bullets: string[];
   tailored_for_role: string;
 };
+type ImprovementTask = {
+  title: string;
+  addresses_gaps: string[];
+  effort_days: number;
+  deliverables: string[];
+  implementation_hints: string;
+  resume_impact: string;
+};
+type ImprovementPlan = { project_name: string; tasks: ImprovementTask[] };
 
 export default function MatchPage() {
   const api = useApi();
@@ -84,6 +93,10 @@ export default function MatchPage() {
   const [resumeData, setResumeData] = useState<ResumeData | null>(null);
   const [resumeOpen, setResumeOpen] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [downloading, setDownloading] = useState(false);
+  const [planLoading, setPlanLoading] = useState(false);
+  const [planData, setPlanData] = useState<ImprovementPlan | null>(null);
+  const [planOpen, setPlanOpen] = useState(false);
 
   async function onMatch() {
     if (!jd.trim()) return;
@@ -115,6 +128,66 @@ export default function MatchPage() {
       toast.error(msg);
     } finally {
       setResumeLoading(null);
+    }
+  }
+
+  async function onGeneratePlan() {
+    if (!jd.trim()) return;
+    setPlanLoading(true);
+    try {
+      const p = await api.post<ImprovementPlan>(
+        "/match/improvement",
+        { raw_jd: jd, top_k: 5, language: locale },
+        120_000,
+      );
+      setPlanData(p);
+      setPlanOpen(true);
+    } catch (e) {
+      const msg = e instanceof ApiError ? e.message : String(e);
+      toast.error(msg);
+    } finally {
+      setPlanLoading(false);
+    }
+  }
+
+  async function downloadResumeDocx() {
+    if (!resumeData) return;
+    setDownloading(true);
+    try {
+      const res = await fetch(`${API_BASE}/resume/export/docx`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(api.token ? { Authorization: `Bearer ${api.token}` } : {}),
+        },
+        body: JSON.stringify({
+          name: resumeData.project_title,
+          sections: [
+            {
+              title: locale === "zh" ? "技术栈" : "Tech Stack",
+              content: resumeData.stack_line,
+            },
+            {
+              title: locale === "zh" ? "项目要点" : "Highlights",
+              content: resumeData.star_bullets.map((b) => `- ${b}`).join("\n"),
+            },
+          ],
+        }),
+      });
+      if (!res.ok) throw new Error(String(res.status));
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${resumeData.project_title.replace(/\s+/g, "_")}_resume.docx`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch {
+      toast.error(locale === "zh" ? "导出失败，请重试" : "Export failed, please retry");
+    } finally {
+      setDownloading(false);
     }
   }
 
@@ -200,8 +273,22 @@ export default function MatchPage() {
             </CardContent>
           </Card>
 
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between gap-2">
             <h2 className="text-sm font-medium text-muted-foreground">{t.match.ranked}</h2>
+            <div className="flex gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={planLoading}
+              onClick={onGeneratePlan}
+            >
+              {planLoading ? (
+                <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Wrench className="mr-1.5 h-3.5 w-3.5" />
+              )}
+              {t.match.improvementPlan}
+            </Button>
             <Button
               size="sm"
               variant="default"
@@ -221,6 +308,7 @@ export default function MatchPage() {
               <FileText className="mr-1.5 h-3.5 w-3.5" />
               {t.match.generateFull}
             </Button>
+            </div>
           </div>
           {result.matches.map((m, idx) => (
             <Card key={idx}>
@@ -332,7 +420,86 @@ export default function MatchPage() {
               {copied ? <Check className="mr-1.5 h-3.5 w-3.5" /> : <Copy className="mr-1.5 h-3.5 w-3.5" />}
               {copied ? t.match.copied : t.match.copy}
             </Button>
+            <Button variant="outline" size="sm" disabled={downloading} onClick={downloadResumeDocx}>
+              {downloading ? (
+                <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Download className="mr-1.5 h-3.5 w-3.5" />
+              )}
+              {downloading ? t.match.downloading : t.match.download}
+            </Button>
             <Button size="sm" onClick={() => setResumeOpen(false)}>
+              {t.match.close}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Improvement Plan Dialog */}
+      <Dialog open={planOpen} onOpenChange={setPlanOpen}>
+        <DialogContent className="sm:max-w-lg max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{t.match.planTitle}</DialogTitle>
+          </DialogHeader>
+          {planData && (
+            <div className="space-y-4">
+              <p className="text-sm text-muted-foreground">{planData.project_name}</p>
+              {planData.tasks.length === 0 && (
+                <p className="text-sm text-muted-foreground">{t.match.planEmpty}</p>
+              )}
+              {planData.tasks.map((task, i) => (
+                <div key={i} className="border-l-2 pl-3 space-y-1.5">
+                  <div className="flex items-start justify-between gap-2">
+                    <h3 className="text-sm font-medium leading-snug">
+                      {i + 1}. {task.title}
+                    </h3>
+                    <Badge variant="outline" className="shrink-0 font-mono text-xs">
+                      {task.effort_days}
+                      {t.match.planEffort}
+                    </Badge>
+                  </div>
+                  {task.addresses_gaps.length > 0 && (
+                    <div className="flex flex-wrap items-center gap-1">
+                      <span className="text-xs text-muted-foreground mr-1">
+                        {t.match.planGaps}
+                      </span>
+                      {task.addresses_gaps.map((g) => (
+                        <Badge key={g} variant="secondary" className="text-xs font-normal">
+                          {g}
+                        </Badge>
+                      ))}
+                    </div>
+                  )}
+                  {task.deliverables.length > 0 && (
+                    <div className="text-xs">
+                      <span className="text-muted-foreground">{t.match.planDeliverables}</span>
+                      <ul className="mt-0.5 space-y-0.5">
+                        {task.deliverables.map((d, j) => (
+                          <li key={j} className="pl-3 relative before:content-['–'] before:absolute before:left-0 before:text-muted-foreground">
+                            {d}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  {task.implementation_hints && (
+                    <p className="text-xs text-muted-foreground">
+                      <span className="font-medium">{t.match.planHints}: </span>
+                      {task.implementation_hints}
+                    </p>
+                  )}
+                  {task.resume_impact && (
+                    <p className="text-xs text-muted-foreground italic">
+                      <span className="font-medium not-italic">{t.match.planImpact}: </span>
+                      {task.resume_impact}
+                    </p>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+          <DialogFooter>
+            <Button size="sm" onClick={() => setPlanOpen(false)}>
               {t.match.close}
             </Button>
           </DialogFooter>

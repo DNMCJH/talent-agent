@@ -2,17 +2,6 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Landing-page utilities — fine grid lines and a subtle blueprint grid.
-   Kept here (not Tailwind config) since they are page-specific decoration. */
-@layer utilities {
-  .grid-lines {
-    background-image:
-      linear-gradient(to right, hsl(var(--border)) 1px, transparent 1px),
-      linear-gradient(to bottom, hsl(var(--border)) 1px, transparent 1px);
-    background-size: 64px 64px;
-  }
-}
-
 @layer base {
   :root {
     --background: 0 0% 100%;
