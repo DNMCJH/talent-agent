@@ -5,9 +5,9 @@ import { useEffect, useRef } from "react";
 /** Spacing of the dot grid — matches the CSS fallback grid in globals.css. */
 const SPACING = 24;
 /** How far the cursor's pull reaches, in px. */
-const RADIUS = 170;
+const RADIUS = 150;
 /** Max fraction of the way a dot slides toward the cursor. */
-const PULL = 0.34;
+const PULL = 0.3;
 
 /** An interactive dot field: the background grid gathers toward the cursor.
  *  Each dot within RADIUS slides toward the pointer, grows, and darkens, with
@@ -34,9 +34,17 @@ export function CursorDots() {
     // This canvas replaces the CSS dot grid — suppress it to avoid doubling.
     document.documentElement.classList.add("cursor-dots");
 
-    const muted = `hsl(${getComputedStyle(document.documentElement)
-      .getPropertyValue("--muted-foreground")
-      .trim()})`;
+    // Two theme colors: the resting grid matches the faint CSS dot grid
+    // (--border); dots only darken toward --muted-foreground near the cursor.
+    function parseHsl(v: string): [number, number, number] {
+      const m = v
+        .trim()
+        .match(/([\d.]+)\s+([\d.]+)%\s+([\d.]+)%/);
+      return m ? [+m[1], +m[2], +m[3]] : [0, 0, 50];
+    }
+    const rootStyle = getComputedStyle(document.documentElement);
+    const restColor = parseHsl(rootStyle.getPropertyValue("--border"));
+    const nearColor = parseHsl(rootStyle.getPropertyValue("--muted-foreground"));
 
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
     let w = 0;
@@ -63,7 +71,6 @@ export function CursorDots() {
 
     function render() {
       ctx!.clearRect(0, 0, w, h);
-      ctx!.fillStyle = muted;
       for (let x = SPACING / 2; x < w; x += SPACING) {
         for (let y = SPACING / 2; y < h; y += SPACING) {
           const dx = ex - x;
@@ -72,22 +79,24 @@ export function CursorDots() {
           let px = x;
           let py = y;
           let r = 1;
-          let alpha = 0.2;
+          let t = 0; // 0 = resting color, 1 = full near-cursor color
           if (dist < RADIUS) {
             const f = 1 - dist / RADIUS;
             const ease = f * f; // concentrate the pull near the cursor
             px = x + dx * PULL * ease;
             py = y + dy * PULL * ease;
-            r = 1 + ease * 1.7;
-            alpha = 0.2 + 0.65 * f;
+            r = 1 + ease * 1.3;
+            t = f;
           }
-          ctx!.globalAlpha = alpha;
+          const hh = restColor[0] + (nearColor[0] - restColor[0]) * t;
+          const ss = restColor[1] + (nearColor[1] - restColor[1]) * t;
+          const ll = restColor[2] + (nearColor[2] - restColor[2]) * t;
+          ctx!.fillStyle = `hsl(${hh} ${ss}% ${ll}%)`;
           ctx!.beginPath();
           ctx!.arc(px, py, r, 0, Math.PI * 2);
           ctx!.fill();
         }
       }
-      ctx!.globalAlpha = 1;
     }
 
     function loop() {

@@ -69,7 +69,7 @@ function NewUserGuide() {
       <h1 className="mt-2 text-2xl font-semibold tracking-tight">
         {t.home.guideTitle}
       </h1>
-      <div className="mt-6 border">
+      <div className="mt-6 border bg-card">
         {steps.map((s) => (
           <div
             key={s.n}
@@ -154,7 +154,7 @@ function Workbench({ count }: { count: number | null }) {
       <p className="mt-7 mb-2 font-mono text-xs uppercase tracking-[0.2em] text-muted-foreground">
         {t.home.continue}
       </p>
-      <div className="border">
+      <div className="border bg-card">
         {rows.map((r) => (
           <Link
             key={r.n}
