@@ -3,16 +3,26 @@
 from __future__ import annotations
 
 import asyncio
+import threading
 from functools import lru_cache
 
 from app.core.config import settings
 
+# Serializes the one-time model load: warmup (background, see app.main) and a
+# real request can race during a deploy — without this both would load BGE.
+_load_lock = threading.Lock()
+
 
 @lru_cache(maxsize=1)
-def get_embedder():
+def _build_embedder():
     from sentence_transformers import SentenceTransformer
 
     return SentenceTransformer(settings.embed_model, device=settings.embed_device)
+
+
+def get_embedder():
+    with _load_lock:
+        return _build_embedder()
 
 
 def embed_text(text: str) -> list[float]:

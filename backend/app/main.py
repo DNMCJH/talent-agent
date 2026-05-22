@@ -11,7 +11,11 @@ from app.core.config import settings
 async def lifespan(app: FastAPI):
     import asyncio
     from app.services.embedder import embed_text
-    await asyncio.to_thread(embed_text, "warmup")
+
+    # Warm the BGE model in the background — awaiting it here blocks startup
+    # (and /health) for ~30s on every deploy. A request arriving before the
+    # model is ready loads it on demand; the load is serialized in embedder.
+    asyncio.create_task(asyncio.to_thread(embed_text, "warmup"))
     yield
 
 
