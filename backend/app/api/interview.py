@@ -9,6 +9,8 @@ from app.core.deps import get_current_user_sse
 from app.core.rate_limit import rate_limit_llm
 from app.core.sse import SSE_HEADERS, pop_stream_payload, stage_stream_payload, wrap_sse
 from app.models.user import User
+from app.schemas.agent_models import InterviewDebrief
+from app.services.interview_debrief import generate_debrief
 from app.services.interview_service import (
     start_interview,
     start_interview_stream,
@@ -32,6 +34,11 @@ class StartInterviewIn(BaseModel):
 class TurnIn(BaseModel):
     session_id: str
     candidate_message: str
+
+
+class DebriefIn(BaseModel):
+    session_id: str
+    language: str = "en"
 
 
 @router.post("/start")
@@ -64,6 +71,21 @@ async def turn(
         session_id=body.session_id,
         candidate_message=body.candidate_message,
         session=session,
+    )
+
+
+@router.post("/debrief", response_model=InterviewDebrief)
+async def debrief(
+    body: DebriefIn,
+    user: User = Depends(rate_limit_llm),
+    session: AsyncSession = Depends(get_session),
+) -> InterviewDebrief:
+    """Aggregate a finished session's per-turn critiques into a debrief report."""
+    return await generate_debrief(
+        user_id=user.id,
+        session_id=body.session_id,
+        session=session,
+        language=body.language,
     )
 
 

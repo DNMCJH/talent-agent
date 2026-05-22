@@ -22,8 +22,16 @@ Focus on changes that are:
 """
 
 
-async def generate_improvements(match_result: MatchResult) -> ImprovementPlan:
+async def generate_improvements(
+    match_result: MatchResult, language: str = "en"
+) -> ImprovementPlan:
     best = match_result.overall_best
+    lang_instr = (
+        "Write all task titles, deliverables, hints and resume-impact text in "
+        "Chinese (Mandarin)."
+        if language == "zh"
+        else "Write all output in English."
+    )
     context = f"""Target JD: {match_result.jd.role} at {match_result.jd.company}
 Must-have skills: {[s.name for s in match_result.jd.must_skills]}
 Plus skills: {[s.name for s in match_result.jd.plus_skills]}
@@ -42,7 +50,7 @@ README excerpt:
 {best.project.readme[:2000]}"""
 
     return await call_llm_structured(
-        system=SYSTEM_PROMPT,
+        system=SYSTEM_PROMPT + "\n" + lang_instr,
         user_message=context,
         output_schema=ImprovementPlan,
     )

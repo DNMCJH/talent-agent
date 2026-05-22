@@ -6,6 +6,7 @@
     "interview": "面试",
     "quiz": "自测",
     "resumeUpload": "简历",
+    "applications": "投递",
     "settings": "设置",
     "signOut": "退出"
   },
@@ -73,6 +74,8 @@
     "download": "下载 DOCX",
     "downloading": "生成中…",
     "improvementPlan": "改进计划",
+    "coverLetter": "求职信",
+    "coverTitle": "求职信草稿",
     "planTitle": "项目改进计划",
     "planEffort": "天",
     "planGaps": "弥补",
@@ -109,7 +112,12 @@
     "inProgress": "面试进行中",
     "end": "结束会话",
     "yourAnswer": "你的回答…",
-    "noProjects": "请先导入项目再开始面试。"
+    "noProjects": "请先导入项目再开始面试。",
+    "debrief": "面试复盘",
+    "debriefTitle": "面试复盘报告",
+    "debriefStrengths": "强项",
+    "debriefWeaknesses": "弱项",
+    "debriefRecommendations": "改进建议"
   },
   "repoBrowser": {
     "title": "浏览你的 GitHub 仓库",
@@ -280,6 +288,26 @@
     "submitting": "保存中…",
     "created": "项目已添加",
     "openInProjects": "返回项目列表"
+  },
+  "applications": {
+    "eyebrow": "求职进度",
+    "title": "投递追踪",
+    "subtitle": "记录你投递过的岗位，以及每一个目前进行到哪一步。",
+    "addTitle": "添加投递记录",
+    "company": "公司",
+    "role": "岗位",
+    "link": "招聘链接（可选）",
+    "notes": "备注（可选）",
+    "add": "添加",
+    "loading": "加载中…",
+    "empty": "还没有投递记录 — 在上方添加一条。",
+    "status": {
+      "saved": "已收藏",
+      "applied": "已投递",
+      "interviewing": "面试中",
+      "offer": "已 offer",
+      "rejected": "已拒"
+    }
   },
   "settings": {
     "title": "设置",

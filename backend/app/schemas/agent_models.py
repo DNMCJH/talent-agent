@@ -99,6 +99,29 @@ class WeaknessEntry(BaseModel):
     last_failure_summary: str = ""
 
 
+class DebriefArea(BaseModel):
+    name: str           # e.g. "项目深度" / "Project depth"
+    score: int          # 1-10
+    comment: str
+
+
+class InterviewDebrief(BaseModel):
+    """End-of-interview summary aggregated from per-turn critiques."""
+    overall_score: int  # 1-10
+    summary: str
+    strengths: list[str]
+    weaknesses: list[str]
+    recommendations: list[str]
+    areas: list[DebriefArea] = []
+
+
+class CoverLetter(BaseModel):
+    recipient: str          # salutation line
+    paragraphs: list[str]
+    closing: str            # sign-off line
+    tailored_for_role: str = ""
+
+
 class ChatTurn(BaseModel):
     role: Literal["interviewer", "candidate"]
     content: str

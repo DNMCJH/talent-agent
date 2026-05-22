@@ -71,6 +71,8 @@ export function useApi() {
     get: <T,>(p: string) => apiFetch<T>(p, token ?? undefined),
     post: <T,>(p: string, body: unknown, timeoutMs?: number) =>
       apiFetch<T>(p, token ?? undefined, { method: "POST", body: JSON.stringify(body) }, timeoutMs),
+    patch: <T,>(p: string, body: unknown) =>
+      apiFetch<T>(p, token ?? undefined, { method: "PATCH", body: JSON.stringify(body) }),
     del: <T,>(p: string) =>
       apiFetch<T>(p, token ?? undefined, { method: "DELETE" }),
     upload: async <T,>(p: string, file: File, timeoutMs?: number): Promise<T> => {

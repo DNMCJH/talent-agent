@@ -6,6 +6,7 @@
     "interview": "Interview",
     "quiz": "Quiz",
     "resumeUpload": "Resume",
+    "applications": "Applications",
     "settings": "Settings",
     "signOut": "Sign out"
   },
@@ -73,6 +74,8 @@
     "download": "Download DOCX",
     "downloading": "Generating…",
     "improvementPlan": "Improvement Plan",
+    "coverLetter": "Cover Letter",
+    "coverTitle": "Cover Letter Draft",
     "planTitle": "Project Improvement Plan",
     "planEffort": "d",
     "planGaps": "Closes",
@@ -109,7 +112,12 @@
     "inProgress": "Interview in progress",
     "end": "End session",
     "yourAnswer": "Your answer…",
-    "noProjects": "Import projects first before starting an interview."
+    "noProjects": "Import projects first before starting an interview.",
+    "debrief": "Debrief",
+    "debriefTitle": "Interview Debrief",
+    "debriefStrengths": "Strengths",
+    "debriefWeaknesses": "Weaknesses",
+    "debriefRecommendations": "Next steps"
   },
   "repoBrowser": {
     "title": "Browse your GitHub repos",
@@ -280,6 +288,26 @@
     "submitting": "Saving…",
     "created": "Project added",
     "openInProjects": "View in projects"
+  },
+  "applications": {
+    "eyebrow": "Job search",
+    "title": "Applications",
+    "subtitle": "Track the jobs you've applied to and where each one stands.",
+    "addTitle": "Add an application",
+    "company": "Company",
+    "role": "Role",
+    "link": "Job posting URL (optional)",
+    "notes": "Notes (optional)",
+    "add": "Add",
+    "loading": "Loading…",
+    "empty": "No applications tracked yet — add one above.",
+    "status": {
+      "saved": "Saved",
+      "applied": "Applied",
+      "interviewing": "Interviewing",
+      "offer": "Offer",
+      "rejected": "Rejected"
+    }
   },
   "settings": {
     "title": "Settings",

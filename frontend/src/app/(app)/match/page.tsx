@@ -15,7 +15,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { Loader2, MessageSquare, FileText, Copy, Check, Download, Wrench, X } from "lucide-react";
+import { Loader2, MessageSquare, FileText, Copy, Check, Download, Wrench, Mail, X } from "lucide-react";
 import { useI18n } from "@/i18n/context";
 import { copyToClipboard } from "@/lib/clipboard";
 
@@ -54,6 +54,12 @@ type ImprovementTask = {
   resume_impact: string;
 };
 type ImprovementPlan = { project_name: string; tasks: ImprovementTask[] };
+type CoverLetter = {
+  recipient: string;
+  paragraphs: string[];
+  closing: string;
+  tailored_for_role: string;
+};
 
 export default function MatchPage() {
   const api = useApi();
@@ -96,6 +102,9 @@ export default function MatchPage() {
   const [downloading, setDownloading] = useState(false);
   const [planLoading, setPlanLoading] = useState(false);
   const [planData, setPlanData] = useState<ImprovementPlan | null>(null);
+  const [coverLoading, setCoverLoading] = useState(false);
+  const [coverData, setCoverData] = useState<CoverLetter | null>(null);
+  const [coverCopied, setCoverCopied] = useState(false);
 
   // Project ids of the ranked matches — shared by the header's mock-interview
   // and full-resume actions.
@@ -163,6 +172,42 @@ export default function MatchPage() {
       toast.error(msg);
     } finally {
       setPlanLoading(false);
+    }
+  }
+
+  async function onGenerateCoverLetter() {
+    if (!jd.trim()) return;
+    setCoverLoading(true);
+    try {
+      const c = await api.post<CoverLetter>(
+        "/match/cover-letter",
+        { raw_jd: jd, top_k: 5, language: locale },
+        120_000,
+      );
+      setCoverData(c);
+    } catch (e) {
+      const msg = e instanceof ApiError ? e.message : String(e);
+      toast.error(msg);
+    } finally {
+      setCoverLoading(false);
+    }
+  }
+
+  async function copyCoverLetter() {
+    if (!coverData) return;
+    const text = [
+      coverData.recipient,
+      "",
+      ...coverData.paragraphs,
+      "",
+      coverData.closing,
+    ].join("\n");
+    const ok = await copyToClipboard(text);
+    if (ok) {
+      setCoverCopied(true);
+      setTimeout(() => setCoverCopied(false), 2000);
+    } else {
+      toast.error(locale === "zh" ? "复制失败，请手动选中复制" : "Copy failed, please select and copy manually");
     }
   }
 
@@ -329,6 +374,19 @@ export default function MatchPage() {
             </Button>
             <Button
               size="sm"
+              variant="outline"
+              disabled={coverLoading}
+              onClick={onGenerateCoverLetter}
+            >
+              {coverLoading ? (
+                <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Mail className="mr-1.5 h-3.5 w-3.5" />
+              )}
+              {t.match.coverLetter}
+            </Button>
+            <Button
+              size="sm"
               variant="default"
               onClick={() => {
                 const ids = matchedProjectIds();
@@ -422,6 +480,46 @@ export default function MatchPage() {
                     )}
                   </div>
                 ))}
+              </CardContent>
+            </Card>
+          )}
+          {/* Cover letter — inline in the results flow, same as the plan. */}
+          {coverData && (
+            <Card>
+              <CardHeader>
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <CardTitle className="text-base">{t.match.coverTitle}</CardTitle>
+                    {coverData.tailored_for_role && (
+                      <CardDescription>{coverData.tailored_for_role}</CardDescription>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button variant="outline" size="sm" onClick={copyCoverLetter}>
+                      {coverCopied ? (
+                        <Check className="mr-1.5 h-3.5 w-3.5" />
+                      ) : (
+                        <Copy className="mr-1.5 h-3.5 w-3.5" />
+                      )}
+                      {coverCopied ? t.match.copied : t.match.copy}
+                    </Button>
+                    <button
+                      type="button"
+                      onClick={() => setCoverData(null)}
+                      aria-label={t.match.close}
+                      className="text-muted-foreground transition-colors hover:text-foreground"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-3 text-sm leading-relaxed">
+                <p>{coverData.recipient}</p>
+                {coverData.paragraphs.map((p, i) => (
+                  <p key={i}>{p}</p>
+                ))}
+                <p className="whitespace-pre-line">{coverData.closing}</p>
               </CardContent>
             </Card>
           )}

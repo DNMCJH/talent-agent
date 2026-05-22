@@ -17,6 +17,7 @@ export function Nav() {
     { href: "/interview", label: t.nav.interview },
     { href: "/resume-upload", label: t.nav.resumeUpload },
     { href: "/quiz", label: t.nav.quiz },
+    { href: "/applications", label: t.nav.applications },
   ];
 
   return (

@@ -11,10 +11,19 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Loader2, Send } from "lucide-react";
+import { Loader2, Send, ClipboardList, X } from "lucide-react";
 import { useI18n } from "@/i18n/context";
 
 type Project = { id: number; name: string };
+type DebriefArea = { name: string; score: number; comment: string };
+type Debrief = {
+  overall_score: number;
+  summary: string;
+  strengths: string[];
+  weaknesses: string[];
+  recommendations: string[];
+  areas: DebriefArea[];
+};
 type Critique = {
   score?: number;
   weakness_topics?: string[];
@@ -81,6 +90,8 @@ export default function InterviewPage() {
   const [messages, setMessages] = useState<ChatMsg[]>([]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
+  const [debrief, setDebrief] = useState<Debrief | null>(null);
+  const [debriefLoading, setDebriefLoading] = useState(false);
   // Holds the active SSE cleanup so we can cancel on unmount / new turn.
   const sseCloseRef = useRef<(() => void) | null>(null);
 
@@ -212,6 +223,24 @@ export default function InterviewPage() {
     setSessionId(null);
     setMessages([]);
     setInput("");
+    setDebrief(null);
+  }
+
+  async function loadDebrief() {
+    if (!sessionId || !api.token) return;
+    setDebriefLoading(true);
+    try {
+      const d = await api.post<Debrief>(
+        "/interview/debrief",
+        { session_id: sessionId, language },
+        120_000,
+      );
+      setDebrief(d);
+    } catch {
+      toast.error(language === "zh" ? "复盘生成失败，请重试" : "Debrief failed, please retry");
+    } finally {
+      setDebriefLoading(false);
+    }
   }
 
   const canStart =
@@ -383,12 +412,34 @@ export default function InterviewPage() {
   }
 
   // Active interview session
+  const answeredCount = messages.filter((m) => m.role === "candidate").length;
   return (
     <div className="space-y-4 max-w-4xl mx-auto">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold tracking-tight">{t.interview.inProgress}</h1>
-        <Button variant="outline" size="sm" onClick={onReset}>{t.interview.end}</Button>
+        <div className="flex items-center gap-2">
+          {answeredCount > 0 && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={loadDebrief}
+              disabled={debriefLoading || sending}
+            >
+              {debriefLoading ? (
+                <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <ClipboardList className="mr-1.5 h-3.5 w-3.5" />
+              )}
+              {t.interview.debrief}
+            </Button>
+          )}
+          <Button variant="outline" size="sm" onClick={onReset}>{t.interview.end}</Button>
+        </div>
       </div>
+
+      {debrief && (
+        <DebriefCard debrief={debrief} onClose={() => setDebrief(null)} />
+      )}
 
       <div className="space-y-3">
         {messages.map((m, i) => {
@@ -492,6 +543,85 @@ export default function InterviewPage() {
           {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
         </Button>
       </div>
+    </div>
+  );
+}
+
+/** End-of-interview debrief: aggregated score, strengths, gaps, next steps. */
+function DebriefCard({
+  debrief,
+  onClose,
+}: {
+  debrief: Debrief;
+  onClose: () => void;
+}) {
+  const { t } = useI18n();
+  return (
+    <div className="rounded-xl bg-card ring-1 ring-foreground/10 p-6">
+      <div className="flex items-start justify-between">
+        <div>
+          <p className="font-mono text-xs uppercase tracking-[0.2em] text-muted-foreground">
+            {t.interview.debriefTitle}
+          </p>
+          <div className="mt-2 flex items-baseline gap-2">
+            <span className="text-4xl font-semibold tracking-tight">
+              {debrief.overall_score}
+            </span>
+            <span className="text-sm text-muted-foreground">/ 10</span>
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="close"
+          className="text-muted-foreground hover:text-foreground"
+        >
+          <X className="h-4 w-4" />
+        </button>
+      </div>
+
+      <p className="mt-3 text-sm text-muted-foreground">{debrief.summary}</p>
+
+      {debrief.areas.length > 0 && (
+        <div className="mt-5 border-t pt-4 space-y-2">
+          {debrief.areas.map((a) => (
+            <div key={a.name} className="grid grid-cols-12 items-baseline gap-3 text-sm">
+              <span className="col-span-3 font-medium">{a.name}</span>
+              <span className="col-span-1 font-mono text-muted-foreground">
+                {a.score}
+              </span>
+              <span className="col-span-8 text-muted-foreground">{a.comment}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div className="mt-5 grid gap-5 border-t pt-4 sm:grid-cols-3">
+        <DebriefList title={t.interview.debriefStrengths} items={debrief.strengths} />
+        <DebriefList title={t.interview.debriefWeaknesses} items={debrief.weaknesses} />
+        <DebriefList
+          title={t.interview.debriefRecommendations}
+          items={debrief.recommendations}
+        />
+      </div>
+    </div>
+  );
+}
+
+function DebriefList({ title, items }: { title: string; items: string[] }) {
+  return (
+    <div>
+      <p className="font-mono text-xs uppercase tracking-[0.15em] text-muted-foreground">
+        {title}
+      </p>
+      <ul className="mt-2 space-y-1.5 text-sm">
+        {items.map((it, i) => (
+          <li key={i} className="flex gap-1.5">
+            <span className="text-muted-foreground">·</span>
+            <span>{it}</span>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }
