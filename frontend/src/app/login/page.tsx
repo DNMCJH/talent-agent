@@ -25,7 +25,7 @@ export default function LoginPage() {
   const [sentEmail, setSentEmail] = useState<string | null>(null);
 
   useEffect(() => {
-    if (status === "authenticated" || token) router.replace("/projects");
+    if (status === "authenticated" || token) router.replace("/");
   }, [status, token, router]);
 
   useEffect(() => {
@@ -62,7 +62,7 @@ export default function LoginPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <Button className="w-full" onClick={() => router.replace("/projects")}>
+            <Button className="w-full" onClick={() => router.replace("/")}>
               {locale === "zh" ? "继续使用" : "Continue"}
             </Button>
           </CardContent>
@@ -137,7 +137,7 @@ export default function LoginPage() {
             type="button"
             variant="outline"
             className="w-full"
-            onClick={() => signIn("github", { callbackUrl: "/projects" })}
+            onClick={() => signIn("github", { callbackUrl: "/" })}
           >
             {t.login.github}
           </Button>

@@ -1,24 +1,33 @@
 "use client";
 
 import { useSession } from "next-auth/react";
-import { useRouter } from "next/navigation";
-import { useEffect } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import { AppShell } from "@/components/app-shell";
+import { HomeWorkbench } from "@/components/home-workbench";
 import { useI18n } from "@/i18n/context";
 import { useAuth } from "@/lib/auth-context";
 
-export default function LandingPage() {
+export default function RootPage() {
   const { status } = useSession();
-  const { token } = useAuth();
-  const router = useRouter();
+  const { token, loading: authLoading } = useAuth();
   const { t, locale, toggleLocale } = useI18n();
 
-  useEffect(() => {
-    if (status === "authenticated" || token) router.replace("/projects");
-  }, [status, token, router]);
+  const isLoading = status === "loading" || authLoading;
+  const isAuthed = status === "authenticated" || !!token;
 
-  if (status === "authenticated" || token) return null;
+  // Hold render until auth resolves so a signed-in user never flashes the
+  // marketing page (and vice versa).
+  if (isLoading) return null;
+
+  // Signed in: the homepage is the workbench, not the landing page.
+  if (isAuthed) {
+    return (
+      <AppShell>
+        <HomeWorkbench />
+      </AppShell>
+    );
+  }
 
   const features = [
     { title: t.landing.feature1Title, desc: t.landing.feature1Desc },
@@ -66,15 +75,13 @@ export default function LandingPage() {
       </header>
 
       <main className="flex-1">
-        {/* Hero — left-aligned, editorial. Right column carries a quiet
-            blueprint grid so the fold isn't dead whitespace. */}
+        {/* Hero — left-aligned, editorial. Content is vertically centered so
+            the fold reads as a balanced composition, not a top-heavy block. */}
         <section className="border-b">
           <div className="mx-auto grid max-w-[1200px] grid-cols-1 lg:grid-cols-12">
-            <div className="col-span-1 px-6 py-20 lg:col-span-7 lg:border-r lg:py-32">
+            <div className="col-span-1 flex flex-col justify-center px-6 py-20 lg:col-span-7 lg:border-r lg:py-28">
               <p className="mb-6 font-mono text-xs uppercase tracking-[0.2em] text-muted-foreground">
-                {locale === "en"
-                  ? "AI Career Agent"
-                  : "AI 求职助手"}
+                {locale === "en" ? "AI Career Agent" : "AI 求职助手"}
               </p>
               <h1 className="max-w-xl text-4xl font-semibold leading-[1.1] tracking-tight sm:text-5xl lg:text-6xl">
                 {t.landing.hero}
@@ -95,6 +102,7 @@ export default function LandingPage() {
                 </span>
               </div>
             </div>
+
             {/* Right fold — a static product demo, not decoration:
                 a mock JD-to-ranking result the way the match page renders it. */}
             <div className="hidden lg:col-span-5 lg:flex lg:items-center lg:justify-center lg:p-12">
@@ -156,7 +164,7 @@ export default function LandingPage() {
             {features.map((f, i) => (
               <div
                 key={f.title}
-                className="grid grid-cols-1 gap-2 border-b px-6 py-10 transition-colors hover:bg-muted/40 sm:grid-cols-12 sm:gap-6"
+                className="grid grid-cols-1 gap-2 border-b px-6 py-9 transition-colors hover:bg-muted/40 sm:grid-cols-12 sm:gap-6"
               >
                 <span className="font-mono text-sm text-muted-foreground sm:col-span-1">
                   {String(i + 1).padStart(2, "0")}
@@ -171,13 +179,31 @@ export default function LandingPage() {
             ))}
           </div>
         </section>
+
+        {/* Closing CTA band — gives the page a deliberate ending instead of
+            trailing off into the footer. */}
+        <section className="border-b">
+          <div className="mx-auto flex max-w-[1200px] flex-col items-start gap-6 px-6 py-16 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="font-mono text-xs uppercase tracking-[0.2em] text-muted-foreground">
+                {t.landing.ctaEyebrow}
+              </p>
+              <h2 className="mt-2 max-w-md text-2xl font-semibold tracking-tight sm:text-3xl">
+                {t.landing.ctaTitle}
+              </h2>
+            </div>
+            <Link href="/login">
+              <Button size="lg" className="h-11 rounded-none px-7">
+                {t.landing.getStarted}
+              </Button>
+            </Link>
+          </div>
+        </section>
       </main>
 
       <footer className="border-t">
         <div className="mx-auto flex max-w-[1200px] flex-col gap-2 px-6 py-8 sm:flex-row sm:items-center sm:justify-between">
-          <span className="text-sm text-muted-foreground">
-            Talent Agent
-          </span>
+          <span className="text-sm text-muted-foreground">Talent Agent</span>
           <span className="font-mono text-xs text-muted-foreground">
             Next.js · FastAPI · DeepSeek · Qdrant
           </span>
