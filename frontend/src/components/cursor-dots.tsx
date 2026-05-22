@@ -4,17 +4,20 @@ import { useEffect, useRef } from "react";
 
 /** Spacing of the dot grid — matches the CSS fallback grid in globals.css. */
 const SPACING = 24;
-/** How far the cursor's pull reaches, in px. */
-const RADIUS = 150;
-/** Max fraction of the way a dot slides toward the cursor. */
-const PULL = 0.3;
+/** How far the spotlight reaches, in px. */
+const RADIUS = 190;
+/** Max parallax shift of the whole grid, in px. */
+const PARALLAX = 7;
 
-/** An interactive dot field: the background grid gathers toward the cursor.
- *  Each dot within RADIUS slides toward the pointer, grows, and darkens, with
- *  an ease-in falloff so the pull concentrates into a focal cluster.
+/** An interactive dot field: a soft spotlight follows the cursor, lighting
+ *  up dots within its radius (brighter, slightly larger), while the whole
+ *  grid drifts opposite to the cursor for a subtle sense of depth. The dots
+ *  themselves never move from the grid — restrained, "lit" rather than
+ *  distorted.
  *
- *  Canvas-based because CSS background dots are fixed and cannot move. Only
- *  runs on fine-pointer desktops; touch devices keep the static CSS grid. */
+ *  Canvas-based because the parallax offset and per-dot lighting can't be
+ *  done with a static CSS background. Only runs on fine-pointer desktops;
+ *  touch devices keep the static CSS grid. */
 export function CursorDots() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
@@ -34,8 +37,8 @@ export function CursorDots() {
     // This canvas replaces the CSS dot grid — suppress it to avoid doubling.
     document.documentElement.classList.add("cursor-dots");
 
-    // Two theme colors: the resting grid matches the faint CSS dot grid
-    // (--border); dots only darken toward --muted-foreground near the cursor.
+    // Two theme colors: dots rest at the faint CSS-grid color (--border) and
+    // brighten toward --muted-foreground inside the spotlight.
     function parseHsl(v: string): [number, number, number] {
       const m = v
         .trim()
@@ -44,16 +47,20 @@ export function CursorDots() {
     }
     const rootStyle = getComputedStyle(document.documentElement);
     const restColor = parseHsl(rootStyle.getPropertyValue("--border"));
-    const nearColor = parseHsl(rootStyle.getPropertyValue("--muted-foreground"));
+    const litColor = parseHsl(rootStyle.getPropertyValue("--muted-foreground"));
 
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
     let w = 0;
     let h = 0;
-    // Cursor target + eased position (eased so the field trails smoothly).
+    // Cursor target (-9999 = off-screen) and its eased position; the spotlight
+    // and parallax both trail this eased point so the field moves smoothly.
     let cx = -9999;
     let cy = -9999;
     let ex = cx;
     let ey = cy;
+    // Eased parallax offset of the whole grid.
+    let ox = 0;
+    let oy = 0;
     let lastMove = 0;
     let raf = 0;
     let running = false;
@@ -71,26 +78,27 @@ export function CursorDots() {
 
     function render() {
       ctx!.clearRect(0, 0, w, h);
+      const lit = ex > -9000;
       for (let x = SPACING / 2; x < w; x += SPACING) {
         for (let y = SPACING / 2; y < h; y += SPACING) {
-          const dx = ex - x;
-          const dy = ey - y;
-          const dist = Math.hypot(dx, dy);
-          let px = x;
-          let py = y;
+          // Parallax: the dot is drawn shifted; the spotlight test uses the
+          // drawn position so light tracks what the eye sees.
+          const px = x + ox;
+          const py = y + oy;
           let r = 1;
-          let t = 0; // 0 = resting color, 1 = full near-cursor color
-          if (dist < RADIUS) {
-            const f = 1 - dist / RADIUS;
-            const ease = f * f; // concentrate the pull near the cursor
-            px = x + dx * PULL * ease;
-            py = y + dy * PULL * ease;
-            r = 1 + ease * 1.3;
-            t = f;
+          let t = 0; // 0 = resting color, 1 = fully lit
+          if (lit) {
+            const dist = Math.hypot(ex - px, ey - py);
+            if (dist < RADIUS) {
+              const f = 1 - dist / RADIUS;
+              const ease = f * f; // soft circular falloff
+              r = 1 + ease * 1.1;
+              t = ease;
+            }
           }
-          const hh = restColor[0] + (nearColor[0] - restColor[0]) * t;
-          const ss = restColor[1] + (nearColor[1] - restColor[1]) * t;
-          const ll = restColor[2] + (nearColor[2] - restColor[2]) * t;
+          const hh = restColor[0] + (litColor[0] - restColor[0]) * t;
+          const ss = restColor[1] + (litColor[1] - restColor[1]) * t;
+          const ll = restColor[2] + (litColor[2] - restColor[2]) * t;
           ctx!.fillStyle = `hsl(${hh} ${ss}% ${ll}%)`;
           ctx!.beginPath();
           ctx!.arc(px, py, r, 0, Math.PI * 2);
@@ -100,11 +108,20 @@ export function CursorDots() {
     }
 
     function loop() {
-      ex += (cx - ex) * 0.15;
-      ey += (cy - ey) * 0.15;
+      ex += (cx - ex) * 0.12;
+      ey += (cy - ey) * 0.12;
+      // Parallax target: cursor offset from viewport center, inverted. Off
+      // screen → ease back to a centered (zero) offset.
+      const targetOx = cx < -9000 ? 0 : -((cx / w) - 0.5) * 2 * PARALLAX;
+      const targetOy = cy < -9000 ? 0 : -((cy / h) - 0.5) * 2 * PARALLAX;
+      ox += (targetOx - ox) * 0.08;
+      oy += (targetOy - oy) * 0.08;
       render();
       const settled =
-        Math.abs(cx - ex) < 0.4 && Math.abs(cy - ey) < 0.4;
+        Math.abs(cx - ex) < 0.4 &&
+        Math.abs(cy - ey) < 0.4 &&
+        Math.abs(targetOx - ox) < 0.1 &&
+        Math.abs(targetOy - oy) < 0.1;
       // Idle once the field has caught up and the cursor has paused —
       // restarts on the next move so we don't paint a static frame forever.
       if (settled && performance.now() - lastMove > 140) {
@@ -127,7 +144,8 @@ export function CursorDots() {
       start();
     }
     function onLeave() {
-      // Send the cursor off-screen so dots ease back to rest.
+      // Send the cursor off-screen so the spotlight fades and the grid
+      // eases back to its centered, un-parallaxed rest position.
       cx = -9999;
       cy = -9999;
       lastMove = performance.now();
