@@ -6,6 +6,7 @@
     "interview": "Interview",
     "quiz": "Quiz",
     "resumeUpload": "Resume",
+    "settings": "Settings",
     "signOut": "Sign out"
   },
   "projects": {
@@ -78,7 +79,8 @@
     "planDeliverables": "Deliverables",
     "planHints": "How to start",
     "planImpact": "Resume impact",
-    "planEmpty": "No improvement tasks generated."
+    "planEmpty": "No improvement tasks generated.",
+    "emptyResults": "Run a match to see your ranked projects here."
   },
   "interview": {
     "title": "Interview",
@@ -278,5 +280,27 @@
     "submitting": "Saving…",
     "created": "Project added",
     "openInProjects": "View in projects"
+  },
+  "settings": {
+    "title": "Settings",
+    "subtitle": "Manage your account, security, and preferences.",
+    "account": "Account",
+    "accountDesc": "Your identity and how you sign in.",
+    "authMethod": "Sign-in method",
+    "authGithub": "GitHub",
+    "authEmail": "Email",
+    "emailLabel": "Email",
+    "verified": "Verified",
+    "resend": "Resend verification",
+    "security": "Security",
+    "securityDesc": "Keep your account secure.",
+    "password": "Password",
+    "passwordGithub": "Managed by GitHub",
+    "passwordReset": "Send reset link",
+    "passwordResetSent": "Reset link sent",
+    "preferences": "Preferences",
+    "language": "Interface language",
+    "signOutTitle": "Sign out",
+    "signOutDesc": "End your session on this device."
   }
 }

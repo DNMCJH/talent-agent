@@ -15,7 +15,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { Loader2, MessageSquare, FileText, Copy, Check, Download, Wrench } from "lucide-react";
+import { Loader2, MessageSquare, FileText, Copy, Check, Download, Wrench, X } from "lucide-react";
 import { useI18n } from "@/i18n/context";
 import { copyToClipboard } from "@/lib/clipboard";
 
@@ -96,7 +96,24 @@ export default function MatchPage() {
   const [downloading, setDownloading] = useState(false);
   const [planLoading, setPlanLoading] = useState(false);
   const [planData, setPlanData] = useState<ImprovementPlan | null>(null);
-  const [planOpen, setPlanOpen] = useState(false);
+
+  // Project ids of the ranked matches — shared by the header's mock-interview
+  // and full-resume actions.
+  function matchedProjectIds(): number[] {
+    if (!result) return [];
+    return result.matches
+      .map((m) => m.project_id)
+      .filter((id): id is number => typeof id === "number")
+      .slice(0, 5);
+  }
+
+  function startInterviewFromMatches() {
+    const ids = matchedProjectIds();
+    if (ids.length === 0) return;
+    router.push(
+      `/interview?${new URLSearchParams({ project_ids: ids.join(","), jd }).toString()}`,
+    );
+  }
 
   async function onMatch() {
     if (!jd.trim()) return;
@@ -141,7 +158,6 @@ export default function MatchPage() {
         120_000,
       );
       setPlanData(p);
-      setPlanOpen(true);
     } catch (e) {
       const msg = e instanceof ApiError ? e.message : String(e);
       toast.error(msg);
@@ -210,6 +226,9 @@ export default function MatchPage() {
         <p className="text-sm text-muted-foreground mt-1">{t.match.subtitle}</p>
       </div>
 
+      {/* PC: JD input on the left, results on the right. Mobile: stacked. */}
+      <div className="lg:grid lg:grid-cols-[minmax(0,380px)_minmax(0,1fr)] lg:gap-6 lg:items-start">
+      <div className="lg:sticky lg:top-20">
       <Card>
         <CardHeader>
           <CardTitle className="text-base">{t.match.jdTitle}</CardTitle>
@@ -219,7 +238,7 @@ export default function MatchPage() {
             placeholder={t.match.placeholder}
             value={jd}
             onChange={(e) => setJd(e.target.value)}
-            rows={8}
+            rows={10}
             disabled={loading}
           />
           <div className="flex gap-2">
@@ -247,7 +266,14 @@ export default function MatchPage() {
           </div>
         </CardContent>
       </Card>
+      </div>
 
+      <div className="mt-6 space-y-4 lg:mt-0">
+      {!result && !loading && (
+        <div className="flex min-h-[240px] items-center justify-center rounded-xl border border-dashed p-8 text-center text-sm text-muted-foreground">
+          {t.match.emptyResults}
+        </div>
+      )}
       {result && (
         <div className="space-y-4">
           <Card>
@@ -273,9 +299,21 @@ export default function MatchPage() {
             </CardContent>
           </Card>
 
-          <div className="flex items-center justify-between gap-2">
+          {/* Ranked-list header. The portfolio-level actions — mock interview
+              across all matches, improvement plan, full resume — live here;
+              per-project actions stay on each card. */}
+          <div className="flex flex-wrap items-center justify-between gap-2">
             <h2 className="text-sm font-medium text-muted-foreground">{t.match.ranked}</h2>
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={matchedProjectIds().length === 0}
+              onClick={startInterviewFromMatches}
+            >
+              <MessageSquare className="mr-1.5 h-3.5 w-3.5" />
+              {t.match.mockInterview}
+            </Button>
             <Button
               size="sm"
               variant="outline"
@@ -293,10 +331,7 @@ export default function MatchPage() {
               size="sm"
               variant="default"
               onClick={() => {
-                const ids = result.matches
-                  .map((m) => m.project_id)
-                  .filter((id): id is number => typeof id === "number")
-                  .slice(0, 5);
+                const ids = matchedProjectIds();
                 if (ids.length === 0) return;
                 const params = new URLSearchParams({
                   project_ids: ids.join(","),
@@ -310,6 +345,86 @@ export default function MatchPage() {
             </Button>
             </div>
           </div>
+
+          {/* Improvement plan — rendered inline in the results flow, so it
+              reads as part of the analysis rather than a detached dialog. */}
+          {planData && (
+            <Card>
+              <CardHeader>
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <CardTitle className="text-base">{t.match.planTitle}</CardTitle>
+                    <CardDescription>{planData.project_name}</CardDescription>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setPlanData(null)}
+                    aria-label={t.match.close}
+                    className="text-muted-foreground transition-colors hover:text-foreground"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {planData.tasks.length === 0 && (
+                  <p className="text-sm text-muted-foreground">{t.match.planEmpty}</p>
+                )}
+                {planData.tasks.map((task, i) => (
+                  <div key={i} className="space-y-1.5 border-l-2 pl-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <h3 className="text-sm font-medium leading-snug">
+                        {i + 1}. {task.title}
+                      </h3>
+                      <Badge variant="outline" className="shrink-0 font-mono text-xs">
+                        {task.effort_days}
+                        {t.match.planEffort}
+                      </Badge>
+                    </div>
+                    {task.addresses_gaps.length > 0 && (
+                      <div className="flex flex-wrap items-center gap-1">
+                        <span className="mr-1 text-xs text-muted-foreground">
+                          {t.match.planGaps}
+                        </span>
+                        {task.addresses_gaps.map((g) => (
+                          <Badge key={g} variant="secondary" className="text-xs font-normal">
+                            {g}
+                          </Badge>
+                        ))}
+                      </div>
+                    )}
+                    {task.deliverables.length > 0 && (
+                      <div className="text-xs">
+                        <span className="text-muted-foreground">{t.match.planDeliverables}</span>
+                        <ul className="mt-0.5 space-y-0.5">
+                          {task.deliverables.map((d, j) => (
+                            <li
+                              key={j}
+                              className="relative pl-3 before:absolute before:left-0 before:text-muted-foreground before:content-['–']"
+                            >
+                              {d}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                    {task.implementation_hints && (
+                      <p className="text-xs text-muted-foreground">
+                        <span className="font-medium">{t.match.planHints}: </span>
+                        {task.implementation_hints}
+                      </p>
+                    )}
+                    {task.resume_impact && (
+                      <p className="text-xs italic text-muted-foreground">
+                        <span className="font-medium not-italic">{t.match.planImpact}: </span>
+                        {task.resume_impact}
+                      </p>
+                    )}
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          )}
           {result.matches.map((m, idx) => (
             <Card key={idx}>
               <CardHeader>
@@ -351,21 +466,7 @@ export default function MatchPage() {
                   <p className="text-muted-foreground italic pt-1">{m.match_reason}</p>
                 )}
                 {m.project_id && (
-                  <div className="flex gap-2 pt-3 border-t mt-3">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => {
-                        const params = new URLSearchParams({
-                          project_id: String(m.project_id),
-                          jd: jd,
-                        });
-                        router.push(`/interview?${params.toString()}`);
-                      }}
-                    >
-                      <MessageSquare className="mr-1.5 h-3.5 w-3.5" />
-                      {t.match.mockInterview}
-                    </Button>
+                  <div className="mt-3 flex gap-2 border-t pt-3">
                     <Button
                       size="sm"
                       variant="outline"
@@ -386,6 +487,8 @@ export default function MatchPage() {
           ))}
         </div>
       )}
+      </div>
+      </div>
 
       {/* Resume Dialog */}
       <Dialog open={resumeOpen} onOpenChange={setResumeOpen}>
@@ -429,77 +532,6 @@ export default function MatchPage() {
               {downloading ? t.match.downloading : t.match.download}
             </Button>
             <Button size="sm" onClick={() => setResumeOpen(false)}>
-              {t.match.close}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Improvement Plan Dialog */}
-      <Dialog open={planOpen} onOpenChange={setPlanOpen}>
-        <DialogContent className="sm:max-w-lg max-h-[80vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>{t.match.planTitle}</DialogTitle>
-          </DialogHeader>
-          {planData && (
-            <div className="space-y-4">
-              <p className="text-sm text-muted-foreground">{planData.project_name}</p>
-              {planData.tasks.length === 0 && (
-                <p className="text-sm text-muted-foreground">{t.match.planEmpty}</p>
-              )}
-              {planData.tasks.map((task, i) => (
-                <div key={i} className="border-l-2 pl-3 space-y-1.5">
-                  <div className="flex items-start justify-between gap-2">
-                    <h3 className="text-sm font-medium leading-snug">
-                      {i + 1}. {task.title}
-                    </h3>
-                    <Badge variant="outline" className="shrink-0 font-mono text-xs">
-                      {task.effort_days}
-                      {t.match.planEffort}
-                    </Badge>
-                  </div>
-                  {task.addresses_gaps.length > 0 && (
-                    <div className="flex flex-wrap items-center gap-1">
-                      <span className="text-xs text-muted-foreground mr-1">
-                        {t.match.planGaps}
-                      </span>
-                      {task.addresses_gaps.map((g) => (
-                        <Badge key={g} variant="secondary" className="text-xs font-normal">
-                          {g}
-                        </Badge>
-                      ))}
-                    </div>
-                  )}
-                  {task.deliverables.length > 0 && (
-                    <div className="text-xs">
-                      <span className="text-muted-foreground">{t.match.planDeliverables}</span>
-                      <ul className="mt-0.5 space-y-0.5">
-                        {task.deliverables.map((d, j) => (
-                          <li key={j} className="pl-3 relative before:content-['–'] before:absolute before:left-0 before:text-muted-foreground">
-                            {d}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-                  {task.implementation_hints && (
-                    <p className="text-xs text-muted-foreground">
-                      <span className="font-medium">{t.match.planHints}: </span>
-                      {task.implementation_hints}
-                    </p>
-                  )}
-                  {task.resume_impact && (
-                    <p className="text-xs text-muted-foreground italic">
-                      <span className="font-medium not-italic">{t.match.planImpact}: </span>
-                      {task.resume_impact}
-                    </p>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-          <DialogFooter>
-            <Button size="sm" onClick={() => setPlanOpen(false)}>
               {t.match.close}
             </Button>
           </DialogFooter>

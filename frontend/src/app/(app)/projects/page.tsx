@@ -33,6 +33,7 @@ import {
   Square,
   Upload,
   PencilLine,
+  ChevronDown,
 } from "lucide-react";
 import { useI18n } from "@/i18n/context";
 
@@ -414,13 +415,17 @@ export default function ProjectsPage() {
         </CardContent>
       </Card>
 
-      {/* Upload local project */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">{t.projects.uploadTitle}</CardTitle>
-          <CardDescription>{t.projects.uploadDesc}</CardDescription>
-        </CardHeader>
-        <CardContent>
+      {/* Secondary import paths — zip upload and manual entry are lower
+          frequency, so they collapse by default and let GitHub import lead. */}
+      <details className="group overflow-hidden rounded-xl bg-card ring-1 ring-foreground/10">
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-4 py-4 [&::-webkit-details-marker]:hidden">
+          <div className="min-w-0">
+            <p className="text-base font-medium leading-snug">{t.projects.uploadTitle}</p>
+            <p className="text-sm text-muted-foreground">{t.projects.uploadDesc}</p>
+          </div>
+          <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" />
+        </summary>
+        <div className="px-4 pb-4">
           <div
             onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
             onDragLeave={() => setDragOver(false)}
@@ -452,16 +457,18 @@ export default function ProjectsPage() {
               aria-label="Upload project zip file"
             />
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </details>
 
-      {/* Manual entry for non-code projects */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">{t.manual.title}</CardTitle>
-          <CardDescription>{t.manual.subtitle}</CardDescription>
-        </CardHeader>
-        <CardContent>
+      <details className="group overflow-hidden rounded-xl bg-card ring-1 ring-foreground/10">
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-4 py-4 [&::-webkit-details-marker]:hidden">
+          <div className="min-w-0">
+            <p className="text-base font-medium leading-snug">{t.manual.title}</p>
+            <p className="text-sm text-muted-foreground">{t.manual.subtitle}</p>
+          </div>
+          <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" />
+        </summary>
+        <div className="px-4 pb-4">
           <Link
             href="/projects/manual"
             className="flex w-full items-center justify-center gap-2 rounded-lg border border-border bg-background px-4 py-2 text-sm font-medium hover:bg-muted transition-colors"
@@ -469,8 +476,8 @@ export default function ProjectsPage() {
             <PencilLine className="h-4 w-4" />
             {t.manual.submit}
           </Link>
-        </CardContent>
-      </Card>
+        </div>
+      </details>
 
       {/* Batch import progress */}
       {batchStatus.length > 0 && (

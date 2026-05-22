@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { AppShell } from "@/components/app-shell";
 import { HomeWorkbench } from "@/components/home-workbench";
+import { CursorGlow } from "@/components/cursor-glow";
 import { useI18n } from "@/i18n/context";
 import { useAuth } from "@/lib/auth-context";
 
@@ -44,9 +45,10 @@ export default function RootPage() {
   ];
 
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className="relative min-h-screen flex flex-col">
+      <CursorGlow />
       {/* Header — full-bleed border, content aligned to a 1200px column */}
-      <header className="border-b">
+      <header className="relative z-[1] border-b">
         <div className="mx-auto flex h-16 max-w-[1200px] items-center justify-between px-6">
           <div className="flex items-center gap-2.5">
             <span className="grid h-6 w-6 place-items-center bg-foreground text-background font-mono text-xs font-bold">
@@ -74,7 +76,7 @@ export default function RootPage() {
         </div>
       </header>
 
-      <main className="flex-1">
+      <main className="relative z-[1] flex-1">
         {/* Hero — left-aligned, editorial. Content is vertically centered so
             the fold reads as a balanced composition, not a top-heavy block. */}
         <section className="border-b">
@@ -201,7 +203,7 @@ export default function RootPage() {
         </section>
       </main>
 
-      <footer className="border-t">
+      <footer className="relative z-[1] border-t">
         <div className="mx-auto flex max-w-[1200px] flex-col gap-2 px-6 py-8 sm:flex-row sm:items-center sm:justify-between">
           <span className="text-sm text-muted-foreground">Talent Agent</span>
           <span className="font-mono text-xs text-muted-foreground">

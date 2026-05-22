@@ -6,6 +6,7 @@
     "interview": "面试",
     "quiz": "自测",
     "resumeUpload": "简历",
+    "settings": "设置",
     "signOut": "退出"
   },
   "projects": {
@@ -78,7 +79,8 @@
     "planDeliverables": "交付物",
     "planHints": "如何上手",
     "planImpact": "简历收益",
-    "planEmpty": "未生成改进任务。"
+    "planEmpty": "未生成改进任务。",
+    "emptyResults": "运行匹配后，项目排名结果将在此显示。"
   },
   "interview": {
     "title": "面试",
@@ -278,5 +280,27 @@
     "submitting": "保存中…",
     "created": "项目已添加",
     "openInProjects": "返回项目列表"
+  },
+  "settings": {
+    "title": "设置",
+    "subtitle": "管理你的账号、安全设置与偏好。",
+    "account": "账号",
+    "accountDesc": "你的身份信息与登录方式。",
+    "authMethod": "登录方式",
+    "authGithub": "GitHub",
+    "authEmail": "邮箱",
+    "emailLabel": "邮箱",
+    "verified": "已验证",
+    "resend": "重新发送验证邮件",
+    "security": "安全",
+    "securityDesc": "保护你的账号安全。",
+    "password": "密码",
+    "passwordGithub": "由 GitHub 托管",
+    "passwordReset": "发送重置链接",
+    "passwordResetSent": "重置链接已发送",
+    "preferences": "偏好",
+    "language": "界面语言",
+    "signOutTitle": "退出登录",
+    "signOutDesc": "结束当前设备上的会话。"
   }
 }

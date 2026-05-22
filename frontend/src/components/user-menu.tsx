@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import Link from "next/link";
 import { signOut, useSession } from "next-auth/react";
 import { useApi } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
@@ -104,10 +105,17 @@ export function UserMenu() {
               </p>
             </div>
           </div>
+          <Link
+            href="/settings"
+            onClick={() => setOpen(false)}
+            className="block px-3 py-2.5 text-sm text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground"
+          >
+            {t.nav.settings}
+          </Link>
           <button
             type="button"
             onClick={handleSignOut}
-            className="w-full px-3 py-2.5 text-left text-sm text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground"
+            className="w-full border-t px-3 py-2.5 text-left text-sm text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground"
           >
             {t.nav.signOut}
           </button>

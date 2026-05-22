@@ -63,3 +63,29 @@
     background-size: 24px 24px;
   }
 }
+
+@layer components {
+  /* Spotlight surface — a radial highlight that tracks the cursor within the
+     element. The element sets --mx/--my (percentages) on mousemove; the
+     overlay only shows on hover so static cards stay flat and editorial. */
+  .spotlight {
+    position: relative;
+  }
+  .spotlight::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.25s ease;
+    background: radial-gradient(
+      220px circle at var(--mx, 50%) var(--my, 50%),
+      hsl(var(--foreground) / 0.05),
+      transparent 65%
+    );
+  }
+  .spotlight:hover::before {
+    opacity: 1;
+  }
+}

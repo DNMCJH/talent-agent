@@ -1,3 +1,5 @@
+"use client"
+
 import * as React from "react"
 
 import { cn } from "@/lib/utils"
@@ -5,14 +7,25 @@ import { cn } from "@/lib/utils"
 function Card({
   className,
   size = "default",
+  onMouseMove,
   ...props
 }: React.ComponentProps<"div"> & { size?: "default" | "sm" }) {
+  // Feed the cursor position (as percentages) to the .spotlight overlay so a
+  // faint highlight tracks the pointer across the card on hover.
+  function handleMouseMove(e: React.MouseEvent<HTMLDivElement>) {
+    const el = e.currentTarget
+    const r = el.getBoundingClientRect()
+    el.style.setProperty("--mx", `${((e.clientX - r.left) / r.width) * 100}%`)
+    el.style.setProperty("--my", `${((e.clientY - r.top) / r.height) * 100}%`)
+    onMouseMove?.(e)
+  }
   return (
     <div
       data-slot="card"
       data-size={size}
+      onMouseMove={handleMouseMove}
       className={cn(
-        "group/card flex flex-col gap-4 overflow-hidden rounded-xl bg-card py-4 text-sm text-card-foreground ring-1 ring-foreground/10 has-data-[slot=card-footer]:pb-0 has-[>img:first-child]:pt-0 data-[size=sm]:gap-3 data-[size=sm]:py-3 data-[size=sm]:has-data-[slot=card-footer]:pb-0 *:[img:first-child]:rounded-t-xl *:[img:last-child]:rounded-b-xl",
+        "spotlight group/card flex flex-col gap-4 overflow-hidden rounded-xl bg-card py-4 text-sm text-card-foreground ring-1 ring-foreground/10 has-data-[slot=card-footer]:pb-0 has-[>img:first-child]:pt-0 data-[size=sm]:gap-3 data-[size=sm]:py-3 data-[size=sm]:has-data-[slot=card-footer]:pb-0 *:[img:first-child]:rounded-t-xl *:[img:last-child]:rounded-b-xl",
         className
       )}
       {...props}
