@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db import get_session
@@ -14,9 +14,11 @@ router = APIRouter()
 
 
 class MatchIn(BaseModel):
-    raw_jd: str
-    top_k: int = 5
-    language: str = "en"
+    # JDs in the wild fit comfortably under 20K chars. Bound prevents a single
+    # request from ballooning the parser, embedder, Redis stage, and paid LLM calls.
+    raw_jd: str = Field(..., min_length=1, max_length=20_000)
+    top_k: int = Field(default=5, ge=1, le=10)
+    language: str = Field(default="en", pattern="^(en|zh)$")
 
 
 @router.post("", response_model=MatchResult)

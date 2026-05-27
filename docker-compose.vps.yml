@@ -30,7 +30,7 @@ services:
     container_name: talent-postgres
     environment:
       POSTGRES_USER: talent
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-talent}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in .env (do not run prod with the default)}
       POSTGRES_DB: talent
     expose:
       - "5432"
@@ -69,7 +69,10 @@ services:
     env_file:
       - .env
     environment:
-      POSTGRES_DSN: postgresql+asyncpg://talent:${POSTGRES_PASSWORD:-talent}@postgres:5432/talent
+      # Explicit production signal — backend config.py hard-fails on placeholder
+      # / short API_SECRET when APP_ENV=production OR API_PUBLIC_BASE is non-local.
+      APP_ENV: production
+      POSTGRES_DSN: postgresql+asyncpg://talent:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in .env (do not run prod with the default)}@postgres:5432/talent
       REDIS_URL: redis://redis:6379/0
       QDRANT_URL: http://qdrant:6333
       HF_HUB_OFFLINE: "1"

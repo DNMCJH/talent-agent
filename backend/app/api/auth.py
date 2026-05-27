@@ -177,8 +177,8 @@ async def register(
     result = await session.execute(select(User).where(User.email == body.email))
     if result.scalar_one_or_none() is not None:
         raise HTTPException(status.HTTP_409_CONFLICT, "email already registered")
-    if len(body.password) < 6:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, "password must be at least 6 characters")
+    if len(body.password) < 8:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "password must be at least 8 characters")
 
     user = User(email=body.email, password_hash=hash_password(body.password), email_verified=False)
     session.add(user)
@@ -290,8 +290,8 @@ async def reset_password(
     body: ResetPasswordIn,
     session: AsyncSession = Depends(get_session),
 ) -> TokenOut:
-    if len(body.password) < 6:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, "password must be at least 6 characters")
+    if len(body.password) < 8:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "password must be at least 8 characters")
     try:
         user_id = decode_password_reset_token(body.token)
     except jwt.ExpiredSignatureError:

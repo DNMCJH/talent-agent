@@ -83,18 +83,26 @@ export function useApi() {
 
       let signal: AbortSignal | undefined;
       let controller: AbortController | undefined;
+      let timer: ReturnType<typeof setTimeout> | undefined;
       if (timeoutMs) {
         controller = new AbortController();
         signal = controller.signal;
-        setTimeout(() => controller!.abort(), timeoutMs);
+        timer = setTimeout(() => controller!.abort(), timeoutMs);
       }
 
-      const res = await fetch(`${API_BASE}${p}`, {
-        method: "POST",
-        headers,
-        body: form,
-        signal,
-      });
+      let res: Response;
+      try {
+        res = await fetch(`${API_BASE}${p}`, {
+          method: "POST",
+          headers,
+          body: form,
+          signal,
+        });
+      } finally {
+        // Clear the timer on success too — otherwise a completed upload leaves
+        // a pending abort that fires later against an already-resolved controller.
+        if (timer) clearTimeout(timer);
+      }
       if (!res.ok) {
         let detail = `${res.status}`;
         try {

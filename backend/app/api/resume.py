@@ -3,7 +3,7 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -28,9 +28,9 @@ router = APIRouter()
 
 
 class ResumeIn(BaseModel):
-    project_id: int
-    raw_jd: str
-    language: str = "en"
+    project_id: int = Field(..., ge=1)
+    raw_jd: str = Field(..., min_length=1, max_length=20_000)
+    language: str = Field(default="en", pattern="^(en|zh)$")
 
 
 def _score_project(proj_doc: ProjectDoc, parsed, project_id: int) -> Match:
@@ -125,9 +125,9 @@ async def _multi_resume_events_impl(
 
 
 class MultiResumeIn(BaseModel):
-    project_ids: list[int]
-    raw_jd: str
-    language: str = "en"
+    project_ids: list[int] = Field(..., min_length=1, max_length=10)
+    raw_jd: str = Field(..., min_length=1, max_length=20_000)
+    language: str = Field(default="en", pattern="^(en|zh)$")
 
 
 @router.post("/multi/stream/prepare")

@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.auth import issue_stream_token
@@ -22,23 +22,27 @@ router = APIRouter()
 
 
 class StartInterviewIn(BaseModel):
-    project_ids: list[int] = []
+    project_ids: list[int] = Field(default_factory=list, max_length=10)
     project_id: int | None = None
-    raw_jd: str = ""
-    mode: str = "tech"  # 'tech' | 'stress' | 'behavior' | 'comprehensive'
-    interview_type: str = "targeted"  # 'targeted' | 'comprehensive'
-    language: str = "en"  # 'zh' | 'en'
-    resume_context: str = ""  # optional: candidate background from parsed resume
+    raw_jd: str = Field(default="", max_length=20_000)
+    mode: str = Field(default="tech", pattern="^(tech|stress|behavior|comprehensive)$")
+    interview_type: str = Field(default="targeted", pattern="^(targeted|comprehensive)$")
+    language: str = Field(default="en", pattern="^(en|zh)$")
+    # Parsed resume text is structured-but-long; 30K covers very long resumes
+    # without giving callers a free path to ship arbitrary blobs into the LLM.
+    resume_context: str = Field(default="", max_length=30_000)
 
 
 class TurnIn(BaseModel):
-    session_id: str
-    candidate_message: str
+    session_id: str = Field(..., min_length=1, max_length=128)
+    # One interview answer. 8K is generous (~1200 English words / ~2700 Chinese chars)
+    # but caps payloads sent to the paid LLM critique pass.
+    candidate_message: str = Field(..., min_length=1, max_length=8_000)
 
 
 class DebriefIn(BaseModel):
-    session_id: str
-    language: str = "en"
+    session_id: str = Field(..., min_length=1, max_length=128)
+    language: str = Field(default="en", pattern="^(en|zh)$")
 
 
 @router.post("/start")

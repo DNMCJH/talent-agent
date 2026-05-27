@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import uuid
 from collections.abc import AsyncIterator
 from functools import lru_cache
@@ -12,6 +13,8 @@ import redis.asyncio as redis
 from fastapi import HTTPException, status
 
 from app.core.config import settings
+
+_logger = logging.getLogger(__name__)
 
 
 def sse_format(event: dict[str, Any]) -> str:
@@ -33,9 +36,20 @@ async def wrap_sse(gen: AsyncIterator[dict[str, Any]]) -> AsyncIterator[str]:
         async for event in gen:
             yield sse_format(event)
     except HTTPException as e:
+        # HTTPException.detail is intentional client-facing copy; safe to forward.
         yield sse_format({"type": "error", "status": e.status_code, "message": e.detail})
-    except Exception as e:  # noqa: BLE001 — last-ditch catch so client sees something
-        yield sse_format({"type": "error", "status": 500, "message": str(e)})
+    except Exception:  # noqa: BLE001 — last-ditch catch so client sees something
+        # Do not echo raw exception text to the client: it may leak provider
+        # error bodies, internal paths, or stack-adjacent context. Log server-
+        # side with a request id and return a generic message keyed on that id.
+        request_id = uuid.uuid4().hex[:12]
+        _logger.exception("SSE stream failed (request_id=%s)", request_id)
+        yield sse_format({
+            "type": "error",
+            "status": 500,
+            "message": f"internal stream error (request_id={request_id})",
+            "request_id": request_id,
+        })
     yield "data: [DONE]\n\n"
 
 

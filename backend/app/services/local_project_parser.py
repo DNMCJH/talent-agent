@@ -41,6 +41,28 @@ _IGNORE_DIRS = {
 
 _MAX_UNCOMPRESSED_SIZE = 200 * 1024 * 1024  # 200 MB
 _MAX_FILE_COUNT = 5000
+# Per-file cap for files we read into memory (README, source excerpts).
+# Total-archive caps don't protect against a single huge file forcing a big
+# allocation before we slice; check ZipInfo.file_size before zf.read().
+_MAX_SINGLE_FILE_READ = 2 * 1024 * 1024  # 2 MB
+
+
+def _safe_read(zf: zipfile.ZipFile, name: str) -> bytes | None:
+    """Read a member only if its declared size is under _MAX_SINGLE_FILE_READ.
+
+    Returns None for oversize entries so the caller skips them instead of
+    allocating tens-of-MB buffers for one runaway README or source file.
+    """
+    try:
+        info = zf.getinfo(name)
+    except KeyError:
+        return None
+    if info.file_size > _MAX_SINGLE_FILE_READ:
+        return None
+    try:
+        return zf.read(name)
+    except Exception:
+        return None
 
 
 def _scan_zip(content: bytes, filename: str) -> dict[str, Any]:
@@ -76,10 +98,9 @@ def _scan_zip(content: bytes, filename: str) -> dict[str, Any]:
         basename = os.path.basename(name)
 
         if basename.lower().startswith("readme") and not readme_text:
-            try:
-                readme_text = zf.read(name).decode("utf-8", errors="replace")[:8000]
-            except Exception:
-                pass
+            raw = _safe_read(zf, name)
+            if raw is not None:
+                readme_text = raw.decode("utf-8", errors="replace")[:8000]
             continue
 
         if basename in _SIGNAL_FILES:
@@ -105,10 +126,10 @@ def _scan_zip(content: bytes, filename: str) -> dict[str, Any]:
     if not readme_text and sample_files:
         chunks: list[str] = []
         for name in sample_files[:5]:
-            try:
-                text = zf.read(name).decode("utf-8", errors="replace")
-            except Exception:
+            raw = _safe_read(zf, name)
+            if raw is None:
                 continue
+            text = raw.decode("utf-8", errors="replace")
             chunks.append(f"# {name}\n{text[:1200]}")
         source_excerpt = "\n\n".join(chunks)[:6000]
 

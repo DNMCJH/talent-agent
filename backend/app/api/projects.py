@@ -1,8 +1,9 @@
 import logging
 import re
+from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, status
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 import httpx
@@ -37,11 +38,11 @@ class ProjectOut(BaseModel):
 
 
 class ImportGitHubIn(BaseModel):
-    github_url: str
-    analysis_depth: str = "medium"  # 'medium' | 'heavy'
+    github_url: str = Field(..., min_length=1, max_length=512)
+    analysis_depth: Literal["medium", "heavy"] = "medium"
     # Optional: the caller's GitHub OAuth access token. Required to import
     # private repos because the server-side PAT only covers a fixed scope.
-    github_token: str | None = None
+    github_token: str | None = Field(default=None, max_length=512)
 
 
 @router.get("", response_model=list[ProjectOut])
@@ -84,9 +85,15 @@ async def import_github(
     try:
         doc = await scan_github_repo(body.github_url, token=gh_token)
     except ValueError as e:
+        # ValueError carries our own "repo not found / private" copy — safe to forward.
         raise HTTPException(status.HTTP_404_NOT_FOUND, str(e)) from e
-    except Exception as e:
-        raise HTTPException(status.HTTP_502_BAD_GATEWAY, f"github fetch failed: {e}") from e
+    except Exception:
+        # Do not echo the raw exception — could leak GitHub API error bodies,
+        # rate-limit details, or upstream stack-adjacent context. Log server-side.
+        logger.exception("github fetch failed for url=%s user=%s", body.github_url, user.id)
+        raise HTTPException(
+            status.HTTP_502_BAD_GATEWAY, "github fetch failed; see server logs"
+        )
 
     project = Project(
         user_id=user.id,
@@ -110,9 +117,14 @@ async def import_github(
             payload={"name": doc.name, "stack": doc.stack, "topics": doc.topics},
         )
         project.qdrant_point_id = point_id
-    except Exception as e:
+    except Exception:
         await session.rollback()
-        raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, f"embed failed: {e}") from e
+        # Qdrant / embedder errors can include internal endpoints and indices —
+        # log server-side, return a generic message to the client.
+        logger.exception("embed/upsert failed for project=%s user=%s", project.id, user.id)
+        raise HTTPException(
+            status.HTTP_500_INTERNAL_SERVER_ERROR, "indexing failed; see server logs"
+        )
 
     await session.commit()
     await session.refresh(project)
@@ -197,7 +209,7 @@ async def _persist_project(
     doc: ProjectDoc,
     source: str,
     github_url: str | None = None,
-    analysis_depth: str = "medium",
+    analysis_depth: Literal["medium", "heavy"] = "medium",
 ) -> Project:
     """Create a Project row + embed it in Qdrant. Used by upload/manual/resume importers."""
     project = Project(
@@ -222,9 +234,15 @@ async def _persist_project(
             payload={"name": doc.name, "stack": doc.stack, "topics": doc.topics},
         )
         project.qdrant_point_id = point_id
-    except Exception as e:
+    except Exception:
         await session.rollback()
-        raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, f"embed failed: {e}") from e
+        logger.exception(
+            "embed/upsert failed for project=%s user=%s source=%s",
+            project.id, user.id, source,
+        )
+        raise HTTPException(
+            status.HTTP_500_INTERNAL_SERVER_ERROR, "indexing failed; see server logs"
+        )
 
     await session.commit()
     await session.refresh(project)

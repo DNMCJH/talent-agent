@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import secrets
 import time
 from functools import lru_cache
 
@@ -26,7 +27,9 @@ async def _check_rate(
     now = time.time()
     pipe = r.pipeline()
     pipe.zremrangebyscore(key, 0, now - window_seconds)
-    pipe.zadd(key, {str(now): now})
+    # Member must be unique per request — two requests in the same float tick
+    # would otherwise dedupe and undercount, silently letting a burst through.
+    pipe.zadd(key, {f"{now}:{secrets.token_hex(8)}": now})
     pipe.zcard(key)
     pipe.expire(key, window_seconds + 10)
     results = await pipe.execute()
