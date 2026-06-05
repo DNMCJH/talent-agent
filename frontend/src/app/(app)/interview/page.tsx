@@ -11,7 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Loader2, Send, ClipboardList, X } from "lucide-react";
+import { Loader2, Send, ClipboardList, X, Mic } from "lucide-react";
 import { useI18n } from "@/i18n/context";
 
 type Project = { id: number; name: string };
@@ -53,6 +53,7 @@ export default function InterviewPage() {
   const [jd, setJd] = useState("");
   const [resumeContext, setResumeContext] = useState("");
   const [starting, setStarting] = useState(false);
+  const [startingVoice, setStartingVoice] = useState(false);
 
   useEffect(() => {
     const pid = searchParams.get("project_id");
@@ -163,6 +164,37 @@ export default function InterviewPage() {
         },
       },
     );
+  }
+
+  async function onVoiceMock() {
+    if (!canStart || startingVoice) return;
+    setStartingVoice(true);
+    // Base URL of the standalone ai-oral-practice app (separate service).
+    const base = process.env.NEXT_PUBLIC_ORAL_PRACTICE_URL || "http://localhost:3000";
+    // Comprehensive mode covers all projects; targeted mode only the selected ones.
+    const relevant =
+      interviewType === "comprehensive"
+        ? projects ?? []
+        : (projects ?? []).filter((p) => selectedIds.includes(p.id));
+    const projectNames = relevant.map((p) => p.name).join(", ");
+    const form = new FormData();
+    form.append("jd_text", jd);
+    form.append("resume_text", resumeContext);
+    form.append("project_context", projectNames);
+    try {
+      const res = await fetch(`${base}/api/sessions/custom`, { method: "POST", body: form });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = (await res.json()) as { session_id: string };
+      // Hand the pre-created session to the voice app; it reuses the custom prompt.
+      window.open(
+        `${base}/chat/interview?session_id=${encodeURIComponent(data.session_id)}`,
+        "_blank",
+      );
+    } catch {
+      toast.error(t.interview.voiceMockError);
+    } finally {
+      setStartingVoice(false);
+    }
   }
 
   function onSend() {
@@ -405,6 +437,24 @@ export default function InterviewPage() {
               {starting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               {starting ? (language === "zh" ? "AI 正在准备面试…" : "AI preparing interview…") : t.interview.start}
             </Button>
+
+            <div className="pt-1">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={onVoiceMock}
+                disabled={startingVoice || !canStart}
+                className="w-full"
+              >
+                {startingVoice ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <Mic className="mr-2 h-4 w-4" />
+                )}
+                {startingVoice ? t.interview.voiceMockStarting : t.interview.voiceMock}
+              </Button>
+              <p className="text-xs text-muted-foreground mt-1.5">{t.interview.voiceMockHint}</p>
+            </div>
           </CardContent>
         </Card>
       </div>

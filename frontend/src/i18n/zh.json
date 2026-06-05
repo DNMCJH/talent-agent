@@ -117,7 +117,11 @@
     "debriefTitle": "面试复盘报告",
     "debriefStrengths": "强项",
     "debriefWeaknesses": "弱项",
-    "debriefRecommendations": "改进建议"
+    "debriefRecommendations": "改进建议",
+    "voiceMock": "语音模拟面试",
+    "voiceMockHint": "用语音和 AI 面试官对话，带发音评测（在新标签页打开）。",
+    "voiceMockStarting": "正在准备语音面试…",
+    "voiceMockError": "语音面试启动失败，请稍后重试"
   },
   "repoBrowser": {
     "title": "浏览你的 GitHub 仓库",

@@ -117,7 +117,11 @@
     "debriefTitle": "Interview Debrief",
     "debriefStrengths": "Strengths",
     "debriefWeaknesses": "Weaknesses",
-    "debriefRecommendations": "Next steps"
+    "debriefRecommendations": "Next steps",
+    "voiceMock": "Voice mock interview",
+    "voiceMockHint": "Talk to the AI interviewer by voice, with pronunciation scoring (opens in a new tab).",
+    "voiceMockStarting": "Preparing voice interview…",
+    "voiceMockError": "Failed to start voice interview, please retry"
   },
   "repoBrowser": {
     "title": "Browse your GitHub repos",
