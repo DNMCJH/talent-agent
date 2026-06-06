@@ -79,8 +79,10 @@ services:
       EMBED_MODEL: BAAI/bge-small-zh-v1.5
       EMBED_DEVICE: cpu
       HF_HOME: /app/.cache/huggingface
+      TALENT_AGENT_TOKEN: ${TALENT_AGENT_TOKEN:-}
     volumes:
       - hf_cache:/app/.cache/huggingface
+      - backend_data:/app/data
     depends_on:
       postgres:
         condition: service_healthy
@@ -130,3 +132,4 @@ volumes:
   postgres_data:
   redis_data:
   hf_cache:
+  backend_data:

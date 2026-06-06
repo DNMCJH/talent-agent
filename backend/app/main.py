@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api import (
     applications,
     auth,
+    integrations,
     interview,
     match,
     projects,
@@ -48,6 +49,7 @@ app.include_router(resume_export.router, prefix="/resume", tags=["resume-export"
 app.include_router(resume_upload.router, prefix="/resume-upload", tags=["resume-upload"])
 app.include_router(quiz.router, prefix="/quiz", tags=["quiz"])
 app.include_router(applications.router, prefix="/applications", tags=["applications"])
+app.include_router(integrations.router, prefix="/integrations", tags=["integrations"])
 
 
 @app.get("/health")

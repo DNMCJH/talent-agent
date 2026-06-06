@@ -48,6 +48,7 @@ class Settings(BaseSettings):
     api_cors_origins: list[str] = ["http://localhost:3000"]
     api_secret: str = "dev-secret-change-me"  # JWT signing for session tokens
     api_public_base: str = "http://localhost:3000"  # for building email verification links
+    talent_agent_token: str = ""  # shared internal token for SpeakFlow callbacks
 
     # Email (Resend). Leave api key empty to disable email sending (registration
     # still works, users are marked unverified but allowed to use the app).
