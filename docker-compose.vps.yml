@@ -102,6 +102,7 @@ services:
         # be a build arg, not just a runtime env var, or the /api/backend/*
         # rewrite target bakes in as localhost:8000 and 404s in the container.
         NEXT_PUBLIC_API_BASE: https://${APP_DOMAIN}
+        NEXT_PUBLIC_ORAL_PRACTICE_URL: ${ORAL_PRACTICE_URL:-https://speak.projfit.top}
         INTERNAL_API_BASE: http://talent-backend:8000
     container_name: talent-frontend
     # Exposed to the host so the host's nginx can reverse-proxy to it.
@@ -113,6 +114,7 @@ services:
       AUTH_GITHUB_ID: ${AUTH_GITHUB_ID}
       AUTH_GITHUB_SECRET: ${AUTH_GITHUB_SECRET}
       NEXT_PUBLIC_API_BASE: https://${APP_DOMAIN}
+      NEXT_PUBLIC_ORAL_PRACTICE_URL: ${ORAL_PRACTICE_URL:-https://speak.projfit.top}
       INTERNAL_API_BASE: http://talent-backend:8000
       AUTH_TRUST_HOST: "true"
     depends_on:

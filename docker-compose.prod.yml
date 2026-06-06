@@ -86,6 +86,7 @@ services:
       context: ./frontend
       args:
         NEXT_PUBLIC_API_BASE: https://${APP_DOMAIN}
+        NEXT_PUBLIC_ORAL_PRACTICE_URL: ${ORAL_PRACTICE_URL:-https://speak.projfit.top}
     container_name: talent-frontend
     # No public port — only Caddy reaches it (over the internal network).
     expose:
@@ -96,6 +97,7 @@ services:
       AUTH_GITHUB_ID: ${AUTH_GITHUB_ID}
       AUTH_GITHUB_SECRET: ${AUTH_GITHUB_SECRET}
       NEXT_PUBLIC_API_BASE: https://${APP_DOMAIN}
+      NEXT_PUBLIC_ORAL_PRACTICE_URL: ${ORAL_PRACTICE_URL:-https://speak.projfit.top}
       INTERNAL_API_BASE: http://talent-backend:8000
       AUTH_TRUST_HOST: "true"
     depends_on:
