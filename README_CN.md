@@ -1,5 +1,7 @@
 # Talent Agent
 
+部署网址：https://projfit.top
+
 AI 驱动的求职工具包：将你的 GitHub 项目与职位描述匹配，运行自适应模拟面试并提供实时反馈，生成定制化 STAR 简历要点。
 
 > English version: [README.md](README.md)
